@@ -18,6 +18,9 @@ import { InMemoryDashboardSource } from "./dashboard-source";
 import type { CalBookingStore } from "@/core/calcom/types";
 import { InMemoryCalBookingStore } from "./calcom-store";
 import { CallRouter, toEnquiryRecord } from "@/core/calcom/router";
+import { VaaniVoiceClient, type VaaniVoicePort } from "@/adapters/voice/vaanivoice/client";
+import { FakeVaaniVoiceClient } from "@/adapters/voice/vaanivoice/fake";
+import { mergeVaaniEntities } from "@/adapters/voice/vaanivoice/entities";
 import { OutboxRunner } from "@/core/outbox/runner";
 import { BookingService } from "@/core/booking/service";
 import { DEFAULT_BOOKING_CONFIG, BookingConfig, Designer } from "@/core/booking/types";
@@ -62,6 +65,8 @@ export interface Deps {
   dashboard: DashboardSource;
   calStore: CalBookingStore;
   router: CallRouter;
+  vaaniVoice: VaaniVoicePort;
+  fakeVaaniVoice: FakeVaaniVoiceClient | undefined; // only when the in-memory fake is in use (dev/test)
   booking: BookingService;
   // Session 4: post-call pipeline
   postcall: InMemoryPostCallRepo;
@@ -79,7 +84,7 @@ export const TEST_DESIGNERS: Designer[] = [
 ];
 
 export function makeDeps(o: { env?: Record<string, string | undefined>; now?: () => Date; hours?: HoursConfig; designerNames?: string[];
-  designers?: Designer[]; bookingConfig?: BookingConfig } = {}): Deps {
+  designers?: Designer[]; bookingConfig?: BookingConfig; pipelineMode?: "live_tools" | "prompt_only" } = {}): Deps {
   const env = getEnv(o.env ?? process.env);
   const now = o.now ?? (() => new Date());
   const hours = o.hours ?? DEFAULT_HOURS;
@@ -116,7 +121,15 @@ export function makeDeps(o: { env?: Record<string, string | undefined>; now?: ()
     ownerChatId: env.OWNER_TELEGRAM_CHAT_ID ? Number(env.OWNER_TELEGRAM_CHAT_ID) : null, nikhilChatId: env.NIKHIL_TELEGRAM_CHAT_ID ? Number(env.NIKHIL_TELEGRAM_CHAT_ID) : null });
   const calStore = new InMemoryCalBookingStore();
   const router = new CallRouter({ repo: postcall, cal: calStore, booking, bookings: bookingRepo, pepper: env.PHONE_HASH_PEPPER, now, hours });
-  const pipeline = extractor ? new PostCallPipeline({ repo: postcall, bookings: bookingRepo, extractor, now, hours, designerNames: o.designerNames, router }) : undefined;
+  // prompt_only is the production mode (owner decision): Vaani's prompt-only agent cannot call our tools mid-call, so every call is decided here, afterwards, and the
+  // booking is made by Vaani's Cal.com and matched by the router. Vaani's own extracted fields are merged in (they win where valid).
+  const pipeline = extractor ? new PostCallPipeline({ repo: postcall, bookings: bookingRepo, extractor, now, hours, designerNames: o.designerNames, router,
+    mode: o.pipelineMode ?? "prompt_only", refine: (e, rec) => (rec.vendor === "vaanivoice" ? mergeVaaniEntities(e, rec.vendorEntities) : e) }) : undefined;
+  // Vaani (vaanivoice.ai): the real client only with a key; a fake outside production; in production without a key every lookup fails loudly (503 + owner alert).
+  let vaaniVoice: VaaniVoicePort, fakeVaaniVoice: FakeVaaniVoiceClient | undefined;
+  if (env.VAANIVOICE_API_KEY) vaaniVoice = new VaaniVoiceClient({ apiKey: env.VAANIVOICE_API_KEY, clientId: env.VAANIVOICE_CLIENT_ID });
+  else if (env.NODE_ENV !== "production") vaaniVoice = fakeVaaniVoice = new FakeVaaniVoiceClient();
+  else { const no = () => Promise.reject(new Error("vaanivoice is not configured (VAANIVOICE_API_KEY)")); vaaniVoice = { getCallDetails: no, findInHistory: no }; }
   // CRM and email: real adapters only when configured; fakes outside production; in production without config every attempt fails (and is retried / alerted).
   let crm: CrmPort, fakeCrm: FakeCrm | undefined;
   if (env.HUBSPOT_ACCESS_TOKEN && env.HUBSPOT_PIPELINE_ID && env.HUBSPOT_DEAL_STAGE_ID) crm = new HubSpotCrm({ token: env.HUBSPOT_ACCESS_TOKEN, pipelineId: env.HUBSPOT_PIPELINE_ID, dealStageId: env.HUBSPOT_DEAL_STAGE_ID });
@@ -130,7 +143,7 @@ export function makeDeps(o: { env?: Record<string, string | undefined>; now?: ()
   const alerts = new AlertDrainer({ repo: postcall, notifier, designLeadChat: async () => (await bookingRepo.listActiveDesigners()).find((x) => x.isDesignLead && x.telegramChatId != null)?.telegramChatId ?? null,
     ownerChatId: env.OWNER_TELEGRAM_CHAT_ID ? Number(env.OWNER_TELEGRAM_CHAT_ID) : undefined, nikhilChatId: env.NIKHIL_TELEGRAM_CHAT_ID ? Number(env.NIKHIL_TELEGRAM_CHAT_ID) : undefined });
   return { env, repo: new InMemoryRepo(env.PHONE_HASH_PEPPER), now, hours, designerNames: o.designerNames ?? [],
-    enquiries, bookingRepo, calendar, fakeCalendar, notifier, fakeNotifier, handoff, crm, email, fakeCrm, fakeEmail, outbox, dashboard: new InMemoryDashboardSource(postcall, bookingRepo), calStore, router, booking, postcall, extractor, fakeExtractor, pipeline, alerts };
+    enquiries, bookingRepo, calendar, fakeCalendar, notifier, fakeNotifier, handoff, crm, email, fakeCrm, fakeEmail, outbox, dashboard: new InMemoryDashboardSource(postcall, bookingRepo), calStore, router, vaaniVoice, fakeVaaniVoice, booking, postcall, extractor, fakeExtractor, pipeline, alerts };
 }
 
 // Process-wide singleton for the Next dev server (state is in-memory until Supabase lands).

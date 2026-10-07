@@ -22,6 +22,8 @@ export interface CallRecordInput {
   vendorSummary?: string;
   /** Estimated voice-platform cost of the call in INR (the vendor does not document its cost field). */
   voiceCostInr?: number;
+  /** The vendor's own extracted fields, exactly as it reported them (merged into the extraction by the vendor adapter's `refine`). Never persisted. */
+  vendorEntities?: unknown;
   /** Signals the vendor's own extraction picked up (routing hints; the scans still run on the transcript). */
   signals?: { wantsPerson?: boolean; claimedBooking?: boolean; claimedBookingTime?: string };
 }

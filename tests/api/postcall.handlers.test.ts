@@ -3,17 +3,16 @@ import { createHmac } from "node:crypto";
 import { makeDeps, Deps } from "@/server/deps";
 import { handleTool } from "@/server/handlers/tools";
 import { handleProcessCall, handleDrainOutbox } from "@/server/handlers/post-call";
-import { handleVaaniWebhook } from "@/server/handlers/vaani-webhook";
 import { GeminiExtractor } from "@/adapters/llm/gemini";
 import { FakeExtractor } from "@/adapters/llm/fake";
 import { cleanTurns, ext, OPEN, a, c } from "../postcall/pipeline.helpers";
 
 const SECRET = "tool-secret-0123456789";
-const WHK = "vv_whk_secret";
-const ENV = { NODE_ENV: "test", PHONE_HASH_PEPPER: "pepper-0123456789ab", TOOL_SHARED_SECRET: SECRET, VAANI_WEBHOOK_SECRET: WHK, FRONT_DESK_NUMBER: "+919000000000", DESIGN_LEAD_NUMBER: "+919000000001",
+const ENV = { NODE_ENV: "test", PHONE_HASH_PEPPER: "pepper-0123456789ab", TOOL_SHARED_SECRET: SECRET, FRONT_DESK_NUMBER: "+919000000000", DESIGN_LEAD_NUMBER: "+919000000001",
   OWNER_TELEGRAM_CHAT_ID: "111", NIKHIL_TELEGRAM_CHAT_ID: "222" };
 const NOW = new Date("2026-10-07T06:30:00Z"); // Wed 12:00 IST
-const mk = (env: Record<string, string | undefined> = ENV) => makeDeps({ env, now: () => NOW });
+// The tool-driven flow is the "live_tools" mode; production runs prompt_only (the default).
+const mk = (env: Record<string, string | undefined> = ENV) => makeDeps({ env, now: () => NOW, pipelineMode: "live_tools" });
 const req = (body: unknown, auth: string | null = `Bearer ${SECRET}`) => new Request("http://localhost/x", { method: "POST", headers: { "content-type": "application/json", ...(auth ? { authorization: auth } : {}) }, body: JSON.stringify(body) });
 const tool = async (t: Parameters<typeof handleTool>[0], body: unknown, d: Deps) => { const r = await handleTool(t, req(body), d); return { status: r.status, json: await r.json() }; };
 const process_ = async (body: unknown, d: Deps) => { const r = await handleProcessCall(req(body), d); return { status: r.status, json: await r.json() }; };
@@ -106,24 +105,5 @@ describe("extractor selection (hard rule 6: paid tier only)", () => {
   it("no key: a scripted fake in dev/test, NOTHING in production", () => {
     expect(mk().extractor).toBeInstanceOf(FakeExtractor);
     expect(mk({ ...ENV, NODE_ENV: "production" }).extractor).toBeUndefined();
-  });
-});
-
-describe("Vaani end-of-call webhook (payload fields are undocumented, so it is acknowledged, stored and escalated, never guessed)", () => {
-  const body = (id: string) => JSON.stringify({ id, type: "call.completed", created: 1714003200, data: { phone: "+91 98••••••10", something: "unknown shape" } });
-  const send = (b: string) => handleVaaniWebhook(new Request("http://localhost/api/vaani/webhook", { method: "POST", headers: { "x-vaanivoice-signature": "sha256=" + createHmac("sha256", WHK).update(b).digest("hex") }, body: b }), d);
-  it("200s a valid call.completed, marks it unmapped, and alerts the owner once per event type", async () => {
-    const r1 = await send(body("evt_1"));
-    expect(await r1.json()).toMatchObject({ ok: true, duplicate: false, mapped: false });
-    await send(body("evt_2"));
-    const alerts = [...d.postcall.outbox.values()].filter((o) => o.kind === "owner_alert");
-    expect(alerts).toHaveLength(1);
-    expect(alerts[0]!.payload).toMatchObject({ flag: "other" });
-    expect(d.repo.webhookEvents.find((e) => e.id === "evt_1")).toMatchObject({ status: "unmapped" });
-  });
-  it("retries of the same event do nothing more", async () => {
-    await send(body("evt_3"));
-    const again = await send(body("evt_3"));
-    expect(await again.json()).toMatchObject({ duplicate: true });
   });
 });

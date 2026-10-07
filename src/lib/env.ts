@@ -6,9 +6,6 @@ const Env = z.object({
   // AES-256 key for callers.phone_enc (64 hex chars). Required once the database repository is used.
   PHONE_ENC_KEY: z.string().regex(/^[0-9a-fA-F]{64}$/, "PHONE_ENC_KEY must be 64 hex chars").optional(),
   TOOL_SHARED_SECRET: z.string().min(16, "TOOL_SHARED_SECRET must be at least 16 chars"),
-  // Optional until the Vaani integration is verified against docs (hard rule 7).
-  VAANI_API_KEY: z.string().optional(),
-  VAANI_WEBHOOK_SECRET: z.string().optional(),
   // Post-call extraction. A Gemini key is only accepted together with an explicit paid-tier confirmation (hard rule 6).
   GEMINI_API_KEY: z.string().optional(),
   GEMINI_PAID_TIER_CONFIRMED: z.enum(["true", "false"]).optional(),

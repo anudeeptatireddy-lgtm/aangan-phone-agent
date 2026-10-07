@@ -8,12 +8,18 @@ export interface VaaniHistoryRow {
   call_id: string; call_type?: string; direction?: string; call_status?: string; from_number?: string; to_number?: string;
   Start_time?: string; End_time?: string; duration_ms?: number; call_cost?: number; recording_api?: string;
 }
+/** What the webhook handler needs from Vaani. The real client implements it; so does the in-memory fake. */
+export interface VaaniVoicePort {
+  /** null = the call exists but its transcript is not ready yet. Throws when Vaani does not know the call. */
+  getCallDetails(callId: string): Promise<VaaniCallDetails | null>;
+  findInHistory(callId: string): Promise<VaaniHistoryRow | null>;
+}
 export interface VaaniVoiceOptions { apiKey: string; clientId?: string; baseUrl?: string; fetch?: typeof fetch; timeoutMs?: number }
 
 const NOT_READY = /not available/i;
 const SAFE_ID = /^[A-Za-z0-9._-]{3,128}$/;
 
-export class VaaniVoiceClient {
+export class VaaniVoiceClient implements VaaniVoicePort {
   private fetchImpl: typeof fetch;
   private base: string;
   constructor(private o: VaaniVoiceOptions) {

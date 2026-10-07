@@ -12,6 +12,7 @@ import type { CalBooking, CalBookingStore } from "./types";
 
 const MAX_ATTEMPTS = 5;
 const ORPHAN_LOOKBACK_MS = 24 * 3_600_000;
+const URGENT_WITHIN_MS = 24 * 3_600_000;
 
 export type Priority = "urgent" | "normal" | "low";
 export type RouteOutcome = "booked" | "waiting" | "flagged" | "closed" | "not_pending";
@@ -157,7 +158,10 @@ export class CallRouter {
     const dealIfFit = async () => { if (row?.fit === "fit") await this.d.repo.enqueue("hubspot_deal", { enquiryId: row.id, vendorCallId: id, bookingId: null }, `hubspot_deal:${row.id}`); };
 
     if (rivals.length >= 2) {
-      await this.alert("booking_ambiguous", "normal", id, { bookingUids: rivals.map((x) => x.uid), startsAt: rivals[0]!.startsAt }, `booking_ambiguous:${id}`);
+      // Normal, unless the consultation is within 24 hours: then someone must link it today or no designer turns up (owner decision).
+      const earliest = rivals.reduce((m, x) => (x.startsAt < m ? x.startsAt : m), rivals[0]!.startsAt);
+      const soon = earliest.getTime() - this.d.now().getTime() <= URGENT_WITHIN_MS;
+      await this.alert("booking_ambiguous", soon ? "urgent" : "normal", id, { bookingUids: rivals.map((x) => x.uid), startsAt: earliest }, `booking_ambiguous:${id}`);
       await this.d.repo.upsertCall(id, { outcome: "review" });
       await dealIfFit();
       return "flagged";

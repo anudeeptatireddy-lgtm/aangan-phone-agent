@@ -146,7 +146,8 @@ describe("the sweep at call end + 15 min", () => {
 
   it("AMBIGUOUS (2+ candidates): the design lead links it by hand; nothing is claimed or booked; Nikhil and the owner hear nothing", async () => {
     const w = makeWorld();
-    await w.cal.upsert(calBooking("x1")); await w.cal.upsert(calBooking("x2", { createdAt: d("2026-10-07T06:16:00Z") }));
+    const later = { startsAt: d("2026-10-12T05:30:00Z"), endsAt: d("2026-10-12T06:30:00Z") }; // days away: normal priority
+    await w.cal.upsert(calBooking("x1", later)); await w.cal.upsert(calBooking("x2", { ...later, createdAt: d("2026-10-07T06:16:00Z") }));
     await runCall(w, "s2");
     expect(w.notifier.handoffs).toHaveLength(0);
     expect(alertsOf(w, "booking_ambiguous")).toHaveLength(0); // waits for the sweep: a rival call might still claim one
@@ -161,6 +162,20 @@ describe("the sweep at call end + 15 min", () => {
     expect(nonLeadAlerts(w)).toHaveLength(0);
     await w.router.routePending();
     expect(alertsOf(w, "booking_ambiguous")).toHaveLength(1); // the sweep is not repeated
+  });
+
+  it("AMBIGUOUS escalates to URGENT when the earliest candidate consultation starts within 24 hours (exactly 24 h counts)", async () => {
+    const mk = async (starts: string[]) => {
+      const w = makeWorld();
+      for (const [i, st] of starts.entries()) await w.cal.upsert(calBooking(`y${i}`, { startsAt: d(st), endsAt: d(new Date(d(st).getTime() + 3_600_000).toISOString()), createdAt: d(`2026-10-07T06:1${i}:00Z`) }));
+      await runCall(w, "u1");
+      at(w, SWEEP_AT.toISOString()); // 06:34:30Z
+      await w.router.routePending();
+      return alertsOf(w, "booking_ambiguous")[0]!.payload.priority;
+    };
+    expect(await mk(["2026-10-08T05:30:00Z", "2026-10-12T05:30:00Z"])).toBe("urgent");     // one is ~23 h away: the earliest decides
+    expect(await mk(["2026-10-08T06:34:30Z", "2026-10-12T05:30:00Z"])).toBe("urgent");     // exactly 24 h after the sweep
+    expect(await mk(["2026-10-08T06:34:31Z", "2026-10-12T05:30:00Z"])).toBe("normal");     // 1 s over
   });
 
   it("AGENT CLAIMED A BOOKING BUT NONE MATCHED: URGENT to the design lead + a front-desk callback item; the lead is still created for follow-up", async () => {

@@ -1,3 +1,5 @@
+> **RETIRED 2026-10-07:** this covers vaanilabs.in, which the project no longer builds on. Its webhook mapper, signature check and `VAANI_*` env vars were removed. The live integration is vaanivoice.ai: see `vaanivoice-findings.md`.
+
 # Vaani Labs — what is documented, what is not, and how to unblock each gap
 
 Sources read 2026-10-07 (nothing guessed, hard rule 7): https://vaanilabs.in/docs, `/docs/api`, `/docs/integrations`,

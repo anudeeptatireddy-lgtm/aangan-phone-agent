@@ -23,6 +23,7 @@ export function buildCallRecord(i: { callId: string; details: VaaniCallDetails; 
     transcript: turns, recordingRef: h?.recording_api, vendorSummary: i.details.summary || undefined,
     // The vendor's cost field ("credits") has no documented unit, so this is an ESTIMATE from the dashboard's per-minute rate.
     voiceCostInr: durationS !== undefined && i.ratePerMinInr !== undefined ? Math.round((durationS / 60) * i.ratePerMinInr * 100) / 100 : undefined,
+    vendorEntities: i.details.entity,
     signals: { wantsPerson: claim.wantsPerson, claimedBooking: claim.booked, claimedBookingTime: claim.time ?? undefined },
   };
 }

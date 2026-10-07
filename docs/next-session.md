@@ -1,30 +1,38 @@
 # Next session
 
-Updated 2026-10-07 (end of the call-to-booking router session).
+Updated 2026-10-07 (end of the Vaani -> pipeline wiring session).
 
-## Done this session
-- Restored on the owner's Mac from a git bundle; GitHub (private) is the remote. 778 tests passing at restore.
-- **Call-to-booking router** (`src/core/calcom/match.ts`, `router.ts`): pure matcher + `CallRouter`. Triggered by post-call processing finishing, a Cal.com booking arriving, and `/api/cron/tick` (which also runs the sweep). A matched booking goes through rotation assignment (`recordExternalBooking`), the designer note, and the outbox (HubSpot deal, confirmation email, note update). Tests: `tests/calcom/` (matcher, both arrival orders, races, window edges, sweep flags), `tests/api/` (webhook trigger, tick step). Suite: 827 passing, 12 skipped.
-- `design_lead_alert` items are now delivered (they were queued but never sent before).
-- Fixed a double-booking race in `recordExternalBooking`.
-- Decisions recorded in `docs/decisions.md`.
+## Done so far (this project, local on the owner's Mac; GitHub private is the remote)
+- **Call-to-booking router** (`src/core/calcom/`): matcher + `CallRouter`, triggered by post-call processing, a Cal.com booking arriving, and the tick; sweep at call end + 15 min; flags go to the design lead only. Ambiguous = normal priority, URGENT when the earliest candidate consultation is within 24 h.
+- **Vaani -> pipeline wiring** (`src/server/handlers/vaanivoice-webhook.ts`, route `src/app/api/vaanivoice/webhook/[secret]/route.ts`): secret path segment; only `call_postprocessing` is processed; only the call id is read from the body, everything else is re-fetched from Vaani (`VaaniVoicePort`: real client or `FakeVaaniVoiceClient`); outbound calls ignored; failures answer 503 and alert the owner once per call. `makeDeps` runs the pipeline in `prompt_only` mode by default (Vaani's own extracted fields are merged in). The old vaanilabs.in mapper, signature check and `VAANI_*` env vars are removed.
+- `design_lead_alert` items are delivered; double-booking race in `recordExternalBooking` fixed.
+- Advisor agent: `.claude/agents/founders-office-advisor.md`.
+- Suite: 831 passing, 12 skipped; `tsc` clean.
 
-## Needed before live testing (the 13 variables missing from `.env.local`)
-`CRON_SECRET`, `DASHBOARD_TOKEN`, `GEMINI_PAID_TIER_CONFIRMED`, `GOOGLE_IMPERSONATE_USER`, `GOOGLE_SERVICE_ACCOUNT_JSON`, `HUBSPOT_DEAL_STAGE_ID`, `HUBSPOT_PIPELINE_ID`, `RESEND_API_KEY`, `RESEND_FROM`, `RESEND_REPLY_TO`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `VAANI_WEBHOOK_SECRET`.
-Also for the Vaani dashboard product: `VAANIVOICE_API_KEY`, `VAANIVOICE_CLIENT_ID`, `VAANIVOICE_WEBHOOK_SECRET`, `VAANIVOICE_RATE_INR_PER_MIN`, and `CALCOM_SIGNING_SECRET` (the router needs the Cal.com webhook to be signed and reaching us).
+## Tomorrow (owner instruction)
+Retry `corepack pnpm install --frozen-lockfile` and switch `node_modules` over from the earlier npm install. It fails today only because `next@16.4.0` (published 2026-10-06 ~18:20 UTC) is inside pnpm 12's `minimumReleaseAge` window; it clears by itself after about 24 h. **Leave the policy alone.** If it still fails, report which packages, don't relax it. After the switch: run the full suite and confirm 831 passing.
+
+## Needed before live testing
+Missing from `.env.local` (names only):
+`CRON_SECRET`, `DASHBOARD_TOKEN`, `GEMINI_PAID_TIER_CONFIRMED`, `GOOGLE_IMPERSONATE_USER`, `GOOGLE_SERVICE_ACCOUNT_JSON`, `HUBSPOT_DEAL_STAGE_ID`, `HUBSPOT_PIPELINE_ID`, `RESEND_API_KEY`, `RESEND_FROM`, `RESEND_REPLY_TO`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `VAANI_WEBHOOK_SECRET` (**now renamed `VAANIVOICE_WEBHOOK_SECRET`**: 24-128 chars of A-Z a-z 0-9 _ -).
+Also new names for the Vaani + Cal.com side: `VAANIVOICE_WEBHOOK_SECRET`, `VAANIVOICE_RATE_INR_PER_MIN` (the dashboard's per-minute rate; optional), `VAANIVOICE_CLIENT_ID` (optional), `CALCOM_SIGNING_SECRET`.
+`.env.local` already has `VAANIVOICE_API_KEY` (I renamed the old `VAANI_API_KEY` variable name in place; the value is untouched and is the `vaani_` key for vaanivoice.ai).
+In Vaani's dashboard: set the webhook URL to `https://<host>/api/vaanivoice/webhook/<VAANIVOICE_WEBHOOK_SECRET>`. In Cal.com: webhook `https://<host>/api/calcom/webhook` with the same signing secret as `CALCOM_SIGNING_SECRET`.
 Real designer rows: the design lead must have a Telegram chat id, or design-lead alerts wait in the outbox.
 
-## Not wired yet (the router only runs live once these are)
-1. **The vaanivoice webhook is not wired to the pipeline.** `src/adapters/voice/vaanivoice/record.ts` (`buildCallRecord`, `parseVaaniVoiceEvent`) exists, but no route calls it. `src/app/api/vaani/webhook` still uses the vaanilabs.in mapper (returns null). Next step: a `vaanivoice` webhook handler -> `VaaniVoiceClient` details + history -> `buildCallRecord` -> `pipeline.process`.
-2. **`makeDeps` builds the pipeline without `mode: "prompt_only"`** and without `refine: mergeVaaniEntities`. Only prompt-only calls enqueue `call_routing`. Needs a config switch (or make prompt-only the default now that Cal.com booking is the production path).
-3. **In-memory repos only.** `PgPostCallRepo`, `PgCalBookingStore`, `PgBookingRepo` exist and have contract tests, but `makeDeps` still wires in-memory ones. The router has no migration of its own (it uses the outbox row as its state); a Postgres contract run of `tests/calcom/router.test.ts` against the Pg repos is still to do.
-4. The router's contract tests use in-memory stores only.
+## Known gaps and limits
+1. **In-memory repos only.** `makeDeps` still wires in-memory stores; `PgPostCallRepo`, `PgCalBookingStore`, `PgBookingRepo` exist with contract tests. The router keeps its state in the outbox row (no migration) but has not been run against the Pg repos.
+2. **A lost webhook is a lost call.** Vaani's retry behaviour is undocumented. We answer 503 and alert the owner, but nothing re-reads Vaani's history on its own. Recommended follow-up (small): a tick step that lists recent inbound calls from `call-history` and processes any we have not seen.
+3. **Vaani's payload and history fields come from docs/findings only**: `call_postprocessing` carries `data.call_id`; caller number, direction and times come from `call-history`. If a real call shows different field names, the fake-client tests will pass and the live call will not: verify on the first test call (needs the owner to place it).
+4. Price guard is the prompt rule plus the transcript scan that alerts: a documented limitation (advisor brief).
+5. Orphan alerts can repeat for bookings already reported as ambiguous (low priority, once each).
+6. Live transfer, `request_human` and the other tools exist for a tool-capable agent (`pipelineMode: "live_tools"`); the prompt-only agent does not call them.
 
 ## Owner-only items (batched)
-- Confirm the router details in `docs/decisions.md` (the "details I chose" entry): especially (1) only-candidate requires the agent's booking claim, (3) ambiguous = normal priority, (4) 45-minute orphan report.
-- `.claude/agents/founders-office-advisor.md` is still missing: the file was not in ~/Downloads (searched). Re-send it, or say what it should do and it will be recreated. The "Working with the advisor" rule is already in CLAUDE.md.
-- pnpm: it is not installed globally on this Mac (use `corepack pnpm ...`, or `corepack enable`). `pnpm install --frozen-lockfile` currently fails the pnpm 12 supply-chain policy (`minimumReleaseAge`) because `next@16.4.0` was published under 24 h ago; it clears by itself after about a day. `node_modules` is currently from an earlier `npm install`, which works. Do not relax the policy without the owner's say-so.
+- Place the first real test call(s) to Vaani once the env values and both webhooks are set (nobody else can).
+- Telegram bot token and chat ids; HubSpot pipeline/stage ids; Resend key and verified from-address; Google service account if Calendar is wanted (Cal.com is the booking path now, so this can wait).
+- Nikhil production sign-off on rules v1 is still pending (`docs/decisions-v1.md`).
 - Delete `~/aangan-voice-agent.bundle` (owner said they will).
 
 ## Next plan item
-Wire item 1 and 2 above (vaanivoice webhook -> pipeline in prompt_only mode), against the fake client, tests first. Then Session 7 replay harness.
+Session 7 replay harness (20 phone transcripts + 10 hard cases, fails if the agent says a price-related number), then the Postgres wiring (gap 1) and the history-reconcile tick step (gap 2).

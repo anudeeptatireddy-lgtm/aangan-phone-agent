@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { createHmac } from "node:crypto";
 import { makeDeps, Deps } from "@/server/deps";
 import { handleTool } from "@/server/handlers/tools";
-import { handleVaaniWebhook } from "@/server/handlers/vaani-webhook";
 
 const TOOL_SECRET = "tool-secret-0123456789";
 const WHK = "vv_whk_secret";
@@ -11,7 +10,7 @@ const NIGHT = new Date("2026-10-07T16:40:00Z"); // 22:10 IST
 
 let deps: Deps;
 const mkDeps = (now = NOW) =>
-  makeDeps({ env: { NODE_ENV: "test", PHONE_HASH_PEPPER: "pepper-0123456789ab", TOOL_SHARED_SECRET: TOOL_SECRET, VAANI_WEBHOOK_SECRET: WHK, FRONT_DESK_NUMBER: "+919000000000", DESIGN_LEAD_NUMBER: "+919000000001" }, now: () => now });
+  makeDeps({ env: { NODE_ENV: "test", PHONE_HASH_PEPPER: "pepper-0123456789ab", TOOL_SHARED_SECRET: TOOL_SECRET, FRONT_DESK_NUMBER: "+919000000000", DESIGN_LEAD_NUMBER: "+919000000001" }, now: () => now });
 
 const post = (path: string, body: unknown, auth: string | null = `Bearer ${TOOL_SECRET}`) =>
   new Request(`http://localhost${path}`, { method: "POST", headers: { "content-type": "application/json", ...(auth ? { authorization: auth } : {}) }, body: JSON.stringify(body) });
@@ -168,30 +167,5 @@ describe("resolve_date (festival_dates)", () => {
   });
   it("400 on missing text", async () => {
     expect((await handleTool("resolve_date", post("/x", {}), sep8())).status).toBe(400);
-  });
-});
-
-describe("vaani webhook", () => {
-  const body = JSON.stringify({ id: "evt_42", type: "call.completed", created: 1714003200, data: { phone: "+91 98••••••10" } });
-  const sig = "sha256=" + createHmac("sha256", WHK).update(body).digest("hex");
-  const req = (s: string | null, b = body) => new Request("http://localhost/api/vaani/webhook", { method: "POST",
-    headers: { ...(s ? { "x-vaanivoice-signature": s } : {}), "x-vaanivoice-event": "call.completed", "x-vaanivoice-delivery": "7" }, body: b });
-
-  it("401 on bad or missing signature", async () => {
-    expect((await handleVaaniWebhook(req("sha256=" + "0".repeat(64)), deps)).status).toBe(401);
-    expect((await handleVaaniWebhook(req(null), deps)).status).toBe(401);
-  });
-  it("200 on valid, and de-duplicates retries by envelope id", async () => {
-    const a = await handleVaaniWebhook(req(sig), deps);
-    expect(a.status).toBe(200);
-    expect((await a.json()).duplicate).toBe(false);
-    const b = await handleVaaniWebhook(req(sig), deps);
-    expect(b.status).toBe(200);
-    expect((await b.json()).duplicate).toBe(true);
-    expect(deps.repo.webhookEvents).toHaveLength(1);
-  });
-  it("503 if no webhook secret is configured (never accept unsigned events)", async () => {
-    const d = makeDeps({ env: { NODE_ENV: "test", PHONE_HASH_PEPPER: "pepper-0123456789ab", TOOL_SHARED_SECRET: TOOL_SECRET }, now: () => NOW });
-    expect((await handleVaaniWebhook(req(sig), d)).status).toBe(503);
   });
 });
