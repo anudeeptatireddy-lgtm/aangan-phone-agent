@@ -1,0 +1,23 @@
+import { z } from "zod";
+
+const Env = z.object({
+  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  PHONE_HASH_PEPPER: z.string().min(16, "PHONE_HASH_PEPPER must be at least 16 chars"),
+  TOOL_SHARED_SECRET: z.string().min(16, "TOOL_SHARED_SECRET must be at least 16 chars"),
+  // Optional until the Vaani integration is verified against docs (hard rule 7).
+  VAANI_API_KEY: z.string().optional(),
+  VAANI_WEBHOOK_SECRET: z.string().optional(),
+});
+export type Env = z.infer<typeof Env>;
+
+let cached: Env | undefined;
+export function getEnv(source: Record<string, string | undefined> = process.env): Env {
+  if (source === process.env && cached) return cached;
+  const parsed = Env.safeParse(source);
+  if (!parsed.success) {
+    const missing = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
+    throw new Error(`Invalid environment: ${missing}`); // names only, never values
+  }
+  if (source === process.env) cached = parsed.data;
+  return parsed.data;
+}

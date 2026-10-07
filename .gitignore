@@ -7,3 +7,7 @@ node_modules/
 # HARD RULE 1: pricing.md must never enter this repo, any prompt, or any context.
 pricing.md
 **/pricing.md
+.next/
+node_modules/
+*.tsbuildinfo
+next-env.d.ts

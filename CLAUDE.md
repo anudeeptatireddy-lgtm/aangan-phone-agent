@@ -71,4 +71,9 @@ All 40 transcripts' fixtures pass in the rules engine (T01–T20 expected classe
 passes the 20 phone transcripts + 10 hard cases, and a run FAILS if the agent ever says a price-related number.
 
 ## Session plan
-See `docs/session-0-plan.md` §5. Current status: **Session 0 complete, awaiting owner approval.** Project lives in its own repo (local first, pushed to a private GitHub repo once the owner creates it).
+See `docs/session-0-plan.md` §5. Status:
+- Session 0: done (awaiting owner decisions on the rule conflicts, schema, session order).
+- Session 2 (Vaani agent + tools), **local, partial**: tool endpoints + deterministic routing/escalation/hours + Vaani webhook
+  verification + `VoicePlatform` seam + agent prompt draft + local simulator are built and tested. Live-call wiring is BLOCKED on
+  undocumented Vaani features — see `docs/vaani-findings.md`. `check_fit` is a fail-safe stub (always `unclear`).
+- Local-first: run with `pnpm dev`; test with `pnpm test`, `pnpm simulate`. Push only to a private remote the owner creates.
