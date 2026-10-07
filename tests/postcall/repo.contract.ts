@@ -25,6 +25,22 @@ export function postCallRepoContract(name: string, make: () => Promise<PostCallR
       expect(c.id).not.toBe(a.id);
     });
 
+    it("callerContact returns the caller's details including the real phone number (decrypted), or null", async () => {
+      const a = await repo.upsertCaller({ phone: "+919000000017", name: "Priya", email: "p@example.com" });
+      expect(await repo.callerContact(a.id)).toEqual({ phone: "+919000000017", name: "Priya", email: "p@example.com" });
+      const b = await repo.upsertCaller({ phone: "+919000000018" });
+      expect(await repo.callerContact(b.id)).toEqual({ phone: "+919000000018", name: null, email: null });
+      expect(await repo.callerContact("00000000-0000-0000-0000-000000000000")).toBeNull();
+    });
+
+    it("a CRM link is stored once per enquiry (a retry after a half-finished sync finds it)", async () => {
+      const e = await repo.upsertEnquiry(enquiry());
+      expect(await repo.getCrmLink(e.id)).toBeNull();
+      await repo.saveCrmLink(e.id, { contactId: "c-1", dealId: "d-1" });
+      await repo.saveCrmLink(e.id, { contactId: "c-1", dealId: "d-1" });
+      expect(await repo.getCrmLink(e.id)).toEqual({ contactId: "c-1", dealId: "d-1" });
+    });
+
     it("updateCaller fills details by id without erasing existing ones", async () => {
       const a = await repo.upsertCaller({ phone: "+919000000016", name: "Priya" });
       await repo.updateCaller(a.id, { email: "p@example.com", language: "hi" });

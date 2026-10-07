@@ -9,6 +9,6 @@ const keys = { pepper: "pepper-0123456789ab", encKey: randomBytes(32).toString("
 
 postCallRepoContract("Postgres (PGlite, real migrations)", async () => {
   db ??= await freshDb({ seed: true });
-  await db.exec("truncate outbox, usage_costs, audit_flags, escalations, rule_evaluations, calls, enquiries, callers restart identity cascade");
+  await db.exec("truncate outbox, crm_links, usage_costs, audit_flags, escalations, rule_evaluations, calls, enquiries, callers restart identity cascade");
   return new PgPostCallRepo({ query: (sql, p) => db!.query(sql, p as unknown[]) }, keys);
 });

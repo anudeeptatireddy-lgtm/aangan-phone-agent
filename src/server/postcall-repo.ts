@@ -20,7 +20,8 @@ export class InMemoryPostCallRepo implements PostCallRepo {
   costs: { vendorCallId: string; rows: CostRow[]; at: Date }[] = [];
   escalations: (EscalationRow & { vendorCallId: string })[] = [];
   outbox = new Map<string, OutboxRow>();
-  private callers = new Map<string, { id: string; name?: string; email?: string; language?: string }>();
+  private callers = new Map<string, { id: string; phone: string; name?: string; email?: string; language?: string }>();
+  private crmLinks = new Map<string, { contactId: string; dealId: string }>();
   private seq = 0;
 
   constructor(private pepper: string) {}
@@ -28,7 +29,7 @@ export class InMemoryPostCallRepo implements PostCallRepo {
   async upsertCaller(i: { phone: string; name?: string; email?: string; language?: string }) {
     const h = hashPhone(i.phone, this.pepper);
     const cur = this.callers.get(h);
-    const next = { id: cur?.id ?? randomUUID(), name: i.name ?? cur?.name, email: i.email ?? cur?.email, language: i.language ?? cur?.language };
+    const next = { id: cur?.id ?? randomUUID(), phone: i.phone, name: i.name ?? cur?.name, email: i.email ?? cur?.email, language: i.language ?? cur?.language };
     this.callers.set(h, next);
     return { id: next.id };
   }
@@ -36,6 +37,9 @@ export class InMemoryPostCallRepo implements PostCallRepo {
     const c = this.callerById(callerId);
     if (c) Object.assign(c, Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)));
   }
+  async callerContact(callerId: string) { const c = this.callerById(callerId); return c ? { phone: c.phone, name: c.name ?? null, email: c.email ?? null } : null; }
+  async getCrmLink(enquiryId: string) { return this.crmLinks.get(enquiryId) ?? null; }
+  async saveCrmLink(enquiryId: string, link: { contactId: string; dealId: string }) { if (!this.crmLinks.has(enquiryId)) this.crmLinks.set(enquiryId, link); }
   callerById(id: string) { return [...this.callers.values()].find((c) => c.id === id); }
 
   async upsertCall(vendorCallId: string, patch: CallPatch) {

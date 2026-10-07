@@ -4,7 +4,12 @@ import { FakeCalendar } from "@/adapters/calendar/fake";
 import { FakeNotifier } from "@/adapters/notify/fake";
 import { TelegramNotifier } from "@/adapters/notify/telegram";
 import { HandoffService } from "@/core/handoff/service";
-import type { NotifierPort } from "@/core/ports";
+import type { CrmPort, EmailPort, NotifierPort } from "@/core/ports";
+import { FakeCrm } from "@/adapters/crm/fake";
+import { HubSpotCrm } from "@/adapters/crm/hubspot";
+import { FakeEmail } from "@/adapters/email/fake";
+import { ResendEmail } from "@/adapters/email/resend";
+import { OutboxRunner } from "@/core/outbox/runner";
 import { BookingService } from "@/core/booking/service";
 import { DEFAULT_BOOKING_CONFIG, BookingConfig, Designer } from "@/core/booking/types";
 import { FakeExtractor } from "@/adapters/llm/fake";
@@ -18,6 +23,7 @@ import { InMemoryEnquiryStore } from "./enquiry-store";
 import { InMemoryRepo } from "./repo";
 
 const notConfigured = () => Promise.reject(new Error("Telegram is not configured (TELEGRAM_BOT_TOKEN)"));
+const unconfigured = (what: string) => () => Promise.reject(new Error(`${what} is not configured`));
 class UnconfiguredNotifier implements NotifierPort {
   sendHandoff = notConfigured as NotifierPort["sendHandoff"];
   sendAlert = notConfigured;
@@ -38,6 +44,11 @@ export interface Deps {
   notifier: NotifierPort;
   fakeNotifier: FakeNotifier | undefined; // only when the in-memory fake is in use (dev/test)
   handoff: HandoffService;
+  crm: CrmPort;
+  email: EmailPort;
+  fakeCrm: FakeCrm | undefined;
+  fakeEmail: FakeEmail | undefined;
+  outbox: OutboxRunner;
   booking: BookingService;
   // Session 4: post-call pipeline
   postcall: InMemoryPostCallRepo;
@@ -79,10 +90,20 @@ export function makeDeps(o: { env?: Record<string, string | undefined>; now?: ()
     ownerChatId: env.OWNER_TELEGRAM_CHAT_ID ? Number(env.OWNER_TELEGRAM_CHAT_ID) : null, nikhilChatId: env.NIKHIL_TELEGRAM_CHAT_ID ? Number(env.NIKHIL_TELEGRAM_CHAT_ID) : null });
   const postcall = new InMemoryPostCallRepo(env.PHONE_HASH_PEPPER);
   const pipeline = extractor ? new PostCallPipeline({ repo: postcall, bookings: bookingRepo, extractor, now, hours, designerNames: o.designerNames }) : undefined;
+  // CRM and email: real adapters only when configured; fakes outside production; in production without config every attempt fails (and is retried / alerted).
+  let crm: CrmPort, fakeCrm: FakeCrm | undefined;
+  if (env.HUBSPOT_ACCESS_TOKEN && env.HUBSPOT_PIPELINE_ID && env.HUBSPOT_DEAL_STAGE_ID) crm = new HubSpotCrm({ token: env.HUBSPOT_ACCESS_TOKEN, pipelineId: env.HUBSPOT_PIPELINE_ID, dealStageId: env.HUBSPOT_DEAL_STAGE_ID });
+  else if (env.NODE_ENV !== "production") crm = fakeCrm = new FakeCrm();
+  else crm = { createDealForEnquiry: unconfigured("HubSpot (HUBSPOT_ACCESS_TOKEN / HUBSPOT_PIPELINE_ID / HUBSPOT_DEAL_STAGE_ID)") };
+  let email: EmailPort, fakeEmail: FakeEmail | undefined;
+  if (env.RESEND_API_KEY && env.RESEND_FROM) email = new ResendEmail({ apiKey: env.RESEND_API_KEY, from: env.RESEND_FROM, replyTo: env.RESEND_REPLY_TO });
+  else if (env.NODE_ENV !== "production") email = fakeEmail = new FakeEmail();
+  else email = { send: unconfigured("Resend (RESEND_API_KEY / RESEND_FROM)") };
+  const outbox = new OutboxRunner({ repo: postcall, bookings: bookingRepo, notifier, crm, email, now });
   const alerts = new AlertDrainer({ repo: postcall, notifier,
     ownerChatId: env.OWNER_TELEGRAM_CHAT_ID ? Number(env.OWNER_TELEGRAM_CHAT_ID) : undefined, nikhilChatId: env.NIKHIL_TELEGRAM_CHAT_ID ? Number(env.NIKHIL_TELEGRAM_CHAT_ID) : undefined });
   return { env, repo: new InMemoryRepo(env.PHONE_HASH_PEPPER), now, hours, designerNames: o.designerNames ?? [],
-    enquiries, bookingRepo, calendar, notifier, fakeNotifier, handoff, booking, postcall, extractor, fakeExtractor, pipeline, alerts };
+    enquiries, bookingRepo, calendar, notifier, fakeNotifier, handoff, crm, email, fakeCrm, fakeEmail, outbox, booking, postcall, extractor, fakeExtractor, pipeline, alerts };
 }
 
 // Process-wide singleton for the Next dev server (state is in-memory until Supabase lands).

@@ -16,7 +16,7 @@ if (ON) {
     const env = execSync("npx supabase status -o env", { stdio: ["ignore", "pipe", "ignore"] }).toString();
     return (pool = new Pool({ connectionString: /^DB_URL="(.+)"$/m.exec(env)![1]!, max: 4 }));
   };
-  const wipe = () => getPool().query("truncate outbox, usage_costs, audit_flags, escalations, rule_evaluations, calls, enquiries, callers restart identity cascade");
+  const wipe = () => getPool().query("truncate outbox, crm_links, usage_costs, audit_flags, escalations, rule_evaluations, calls, enquiries, callers restart identity cascade");
   afterAll(async () => { if (pool) { await wipe(); await pool.end(); } });
 
   postCallRepoContract("Postgres (local Supabase)", async () => {

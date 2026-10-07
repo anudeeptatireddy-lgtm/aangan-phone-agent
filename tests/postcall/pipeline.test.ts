@@ -48,10 +48,10 @@ describe("a normal booked call", () => {
     expect(note).toContain("Call: 7 min 30 s");
     expect(note).not.toMatch(/priya@example\.com|\+?91\s?9000000021|9000000021/);
   });
-  it("queues the follow-ups: HubSpot deal and the caller's confirmation email (delivered in Session 5)", async () => {
+  it("queues the follow-ups: HubSpot deal, the caller's confirmation email and the designer-note update", async () => {
     const { repo, live, booking } = await run();
     const kinds2 = [...repo.outbox.values()].map((o) => o.kind).sort();
-    expect(kinds2).toEqual(["confirmation_email", "hubspot_deal"]);
+    expect(kinds2).toEqual(["confirmation_email", "designer_note_update", "hubspot_deal"]);
     expect(repo.outbox.get(`hubspot_deal:${live.id}`)!.payload).toMatchObject({ enquiryId: live.id });
     expect(repo.outbox.get(`confirmation_email:${booking.id}`)!.payload).toMatchObject({ bookingId: booking.id, email: "priya@example.com" });
   });
@@ -61,7 +61,7 @@ describe("a normal booked call", () => {
     expect(again.status).toBe("already_processed");
     expect(t.extractor.calls).toHaveLength(1);
     expect(t.repo.costs).toHaveLength(1);
-    expect(t.repo.outbox.size).toBe(2);
+    expect(t.repo.outbox.size).toBe(3);
   });
   it("stores the caller's name/email on the caller (never on logs) and links call and enquiry to them", async () => {
     const { repo, live } = await run();

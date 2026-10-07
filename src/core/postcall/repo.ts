@@ -88,6 +88,10 @@ export interface OutboxRow { id: string; kind: OutboxKind; payload: Record<strin
 export interface PostCallRepo {
   upsertCaller(i: { phone: string; name?: string; email?: string; language?: string }): Promise<{ id: string }>;
   updateCaller(callerId: string, patch: { name?: string; email?: string; language?: string }): Promise<void>;
+  /** The caller's real details for outbound integrations (CRM). The phone is decrypted here and must never be logged. */
+  callerContact(callerId: string): Promise<{ phone: string; name: string | null; email: string | null } | null>;
+  getCrmLink(enquiryId: string): Promise<{ contactId: string; dealId: string } | null>;
+  saveCrmLink(enquiryId: string, link: { contactId: string; dealId: string }): Promise<void>;
   upsertCall(vendorCallId: string, patch: CallPatch): Promise<CallRow>;
   getCall(vendorCallId: string): Promise<CallRow | null>;
   recentCallsForCaller(callerId: string, since: Date): Promise<CallRow[]>;

@@ -178,6 +178,8 @@ export class PostCallPipeline {
     const email = booking?.callerEmail ?? mapping.callerEmail;
     if (booking && email) await repo.enqueue("confirmation_email", { bookingId: booking.id, enquiryId, email, name: mapping.callerName ?? null, startsAt: booking.startsAt.toISOString() }, `confirmation_email:${booking.id}`);
 
+    if (booking && designerNote) await repo.enqueue("designer_note_update", { enquiryId, bookingId: booking.id }, `designer_note_update:${booking.id}`);
+
     const outcome: Outcome = booking ? "booked" : escalated ? "escalated" : rec.endedReason === "dropped" ? "dropped" : saved.fit === "not_fit" ? "not_fit" : "review";
     return finish(outcome, enquiryId, { enquiryId });
   }

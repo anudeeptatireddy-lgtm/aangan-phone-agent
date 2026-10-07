@@ -78,7 +78,7 @@ describe("end to end: live call -> booking -> post-call", () => {
     const e = (await d.postcall.getEnquiry(fit.json.enquiry_id))!;
     expect(e.designerNote).toContain("Booked:");
     expect(e.designerNote).toContain("Call: 7 min 30 s");
-    expect([...d.postcall.outbox.values()].map((o) => o.kind).sort()).toEqual(["confirmation_email", "hubspot_deal"]);
+    expect([...d.postcall.outbox.values()].map((o) => o.kind).sort()).toEqual(["confirmation_email", "designer_note_update", "hubspot_deal"]);
     expect((await d.postcall.getCall("vc-e2e"))!.costAiInr).toBeGreaterThan(0);
   });
   it("a price slip on a real call raises an alert that the drain endpoint delivers to the owner", async () => {

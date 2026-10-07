@@ -3,13 +3,14 @@ import type {
   CallPatch, CallRow, EnquiryRow, EnquiryUpsert, EscalationInput, EscalationRow, EvaluationInput, EvaluationRow, FlagInput, FlagRow, OutboxKind, OutboxRow, PostCallRepo,
 } from "@/core/postcall/repo";
 import { hashPhone, maskPhone } from "@/lib/phone";
-import { encryptPhone } from "@/lib/phone-crypto";
+import { decryptPhone, encryptPhone } from "@/lib/phone-crypto";
 import type { SqlClient } from "./pg-booking-repo";
 
 const iso = (d: Date) => d.toISOString();
 const date = (v: unknown) => (v === null || v === undefined ? null : v instanceof Date ? v : new Date(String(v)));
 const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
 const jsonOf = (v: unknown) => (typeof v === "string" ? JSON.parse(v) : v);
+const toBuffer = (v: unknown): Buffer => (Buffer.isBuffer(v) ? v : v instanceof Uint8Array ? Buffer.from(v) : Buffer.from(String(v).replace(/^\\x/, ""), "hex"));
 const versionNumber = (v: string) => Number(v.replace(/\D/g, ""));
 
 // CallPatch key -> [column, serializer]
@@ -51,6 +52,20 @@ export class PgPostCallRepo implements PostCallRepo {
        returning id`,
       [hashPhone(i.phone, this.keys.pepper), encryptPhone(i.phone, this.keys.encKey), maskPhone(i.phone), i.name ?? null, i.email ?? null, i.language ?? null]);
     return { id: rows[0]!.id as string };
+  }
+
+  async callerContact(callerId: string) {
+    const { rows } = await this.db.query("select phone_enc, name, email from callers where id = $1 and deleted_at is null", [callerId]);
+    const r = rows[0];
+    if (!r) return null;
+    return { phone: decryptPhone(toBuffer(r.phone_enc), this.keys.encKey), name: (r.name as string) ?? null, email: (r.email as string) ?? null };
+  }
+  async getCrmLink(enquiryId: string) {
+    const { rows } = await this.db.query("select hubspot_contact_id, hubspot_deal_id from crm_links where enquiry_id = $1", [enquiryId]);
+    return rows[0] ? { contactId: rows[0].hubspot_contact_id as string, dealId: rows[0].hubspot_deal_id as string } : null;
+  }
+  async saveCrmLink(enquiryId: string, link: { contactId: string; dealId: string }) {
+    await this.db.query("insert into crm_links(enquiry_id, hubspot_contact_id, hubspot_deal_id, synced_at) values ($1,$2,$3,now()) on conflict (enquiry_id) where enquiry_id is not null do nothing", [enquiryId, link.contactId, link.dealId]);
   }
 
   async updateCaller(callerId: string, patch: { name?: string; email?: string; language?: string }) {
