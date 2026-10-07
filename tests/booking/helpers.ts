@@ -18,11 +18,11 @@ export const enquiry = (o: Partial<EnquiryRecord> = {}, input: Record<string, un
   flags: [], ruleVersion: "v1", createdAt: NOW.toISOString(),
   input: CheckFitInput.parse({ location: "Kothrud", project_type: "home", scope: "full_home", bhk: 3, carpet_sqft: 1400, decision_maker: "owner", ...input }), ...o });
 
-export function makeSvc(o: { designers?: Designer[]; cfg?: Partial<BookingConfig> } = {}) {
+export function makeSvc(o: { designers?: Designer[]; cfg?: Partial<BookingConfig>; requireCalendar?: boolean } = {}) {
   const clock = { t: NOW };
   const repo = new InMemoryBookingRepo(o.designers ?? [designer("A", "A", { isPrincipal: true }), designer("B", "B"), designer("C", "C")]);
   const calendar = new FakeCalendar();
   const notifier = new FakeNotifier();
-  const svc = new BookingService({ repo, calendar, notifier, now: () => clock.t, config: { ...DEFAULT_BOOKING_CONFIG, ...o.cfg } });
+  const svc = new BookingService({ repo, calendar, notifier, now: () => clock.t, config: { ...DEFAULT_BOOKING_CONFIG, ...o.cfg }, requireCalendar: o.requireCalendar });
   return { svc, repo, calendar, notifier, clock };
 }

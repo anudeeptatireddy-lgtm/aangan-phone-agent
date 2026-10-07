@@ -12,8 +12,8 @@ export function matchesArea(location: string | undefined, areas: string[]): bool
 
 export interface EligibilityTarget { location?: string; project_type?: string }
 
-export function isEligible(d: Designer, e: EligibilityTarget, opts: { principalOnly?: boolean } = {}): boolean {
-  if (!d.active || !d.calendarId) return false;
+export function isEligible(d: Designer, e: EligibilityTarget, opts: { principalOnly?: boolean; requireCalendar?: boolean } = {}): boolean {
+  if (!d.active || (opts.requireCalendar !== false && !d.calendarId)) return false;
   if (opts.principalOnly && !d.isPrincipal) return false;
   if (!matchesArea(e.location, d.areas)) return false;
   const type = e.project_type === "studio" ? "office" : e.project_type;

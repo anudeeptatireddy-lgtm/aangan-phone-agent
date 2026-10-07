@@ -27,6 +27,8 @@ export interface BookingDeps {
   now: () => Date;
   config: BookingConfig;
   hours?: HoursConfig;
+  /** false when a voice platform's own calendar (Cal.com) makes the booking: designers need no calendar of ours and none is called. */
+  requireCalendar?: boolean;
 }
 
 const MODE = "site_visit";
@@ -47,7 +49,7 @@ export class BookingService {
 
   private async eligibleDesigners(e: EnquiryRecord, wantsPrincipal?: boolean): Promise<Designer[]> {
     const all = await this.d.repo.listActiveDesigners();
-    return all.filter((x) => isEligible(x, { location: e.input.location, project_type: e.input.project_type }, { principalOnly: wantsPrincipal }));
+    return all.filter((x) => isEligible(x, { location: e.input.location, project_type: e.input.project_type }, { principalOnly: wantsPrincipal, requireCalendar: this.d.requireCalendar }));
   }
 
   /** Free/busy for the designers over [from, to): the calendar's events plus our own held/confirmed bookings. */
@@ -158,22 +160,56 @@ export class BookingService {
     const now = this.d.now();
     await this.d.repo.touchLastAssigned(chosen.id, now);
 
-    // Handoff: the booking already stands. A failed Telegram send leaves the handoff 'pending' for a retry; it never undoes the booking.
-    const dueAt = addWorkingMinutes(now, this.d.config.handoffAcceptWorkingMinutes, this.d.hours ?? DEFAULT_HOURS);
-    const handoff = await this.d.repo.createHandoff({ bookingId, designerId: chosen.id, dueAt });
-    let sent = false;
-    if (chosen.telegramChatId != null) {
-      try {
-        const note = buildHandoffNote({ handoffId: handoff.id, enquiry: e, start, mode: MODE, principalRequested: !!i.wantsPrincipal });
-        const m = await this.d.notifier.sendHandoff(chatId(chosen), note);
-        await this.d.repo.markHandoffSent(handoff.id, m.messageId, now);
-        sent = true;
-      } catch (err) {
-        log("error", "booking: handoff send failed; left pending", { error: String(err), handoff_id: handoff.id });
-      }
-    }
+    const sent = await this.sendHandoff(bookingId, chosen, e, start, !!i.wantsPrincipal, now);
     return { ok: true, booking_id: bookingId, start: start.toISOString(), end: end.toISOString(), label: formatSlot(start),
       designer_role: i.wantsPrincipal && chosen.isPrincipal ? "principal" : "designer", handoff_sent: sent, replayed: false };
+  }
+
+
+  /** The booking already stands. A failed Telegram send leaves the handoff 'pending' for the retry job; it never undoes the booking. */
+  private async sendHandoff(bookingId: string, chosen: Designer, e: EnquiryRecord, start: Date, principalRequested: boolean, now: Date): Promise<boolean> {
+    const dueAt = addWorkingMinutes(now, this.d.config.handoffAcceptWorkingMinutes, this.d.hours ?? DEFAULT_HOURS);
+    const handoff = await this.d.repo.createHandoff({ bookingId, designerId: chosen.id, dueAt });
+    if (chosen.telegramChatId == null) return false;
+    try {
+      const note = buildHandoffNote({ handoffId: handoff.id, enquiry: e, start, mode: MODE, principalRequested });
+      const m = await this.d.notifier.sendHandoff(chatId(chosen), note);
+      await this.d.repo.markHandoffSent(handoff.id, m.messageId, now);
+      return true;
+    } catch (err) {
+      log("error", "booking: handoff send failed; left pending", { error: String(err), handoff_id: handoff.id });
+      return false;
+    }
+  }
+
+  /**
+   * A consultation the voice platform has already booked in ITS calendar (Cal.com). Our job is only to give it an owner: rotation among
+   * eligible designers who are free in our own table, then the handoff note. No calendar is read or written.
+   */
+  async recordExternalBooking(i: { enquiry: EnquiryRecord; start: Date; end: Date; externalId: string; callerEmail?: string }):
+    Promise<{ ok: true; bookingId: string; designerId: string; handoffSent: boolean } | { ok: false; error: "no_designer" | "not_bookable" }> {
+    const e = i.enquiry;
+    if (e.fit !== "fit") return { ok: false, error: "not_bookable" }; // hard rule 2: only the rules engine makes an enquiry bookable
+    const key = `cal:${i.externalId}`;
+    const existing = await this.d.repo.findByIdempotencyKey(key);
+    if (existing) return { ok: true, bookingId: existing.id, designerId: existing.designerId, handoffSent: true };
+
+    const eligible = await this.eligibleDesigners(e);
+    const buf = this.d.config.bufferMinutes;
+    const from = new Date(i.start.getTime() - buf * 60_000), to = new Date(i.end.getTime() + buf * 60_000);
+    const [dayStart, dayEnd] = dayWindow(i.start);
+    const busy = await this.d.repo.busyForDesigners(eligible.map((x) => x.id), new Date(Math.min(from.getTime(), dayStart.getTime())), new Date(Math.max(to.getTime(), dayEnd.getTime())));
+    const free = eligible.filter((x) => this.isFree(x, i.start, busy, busy));
+    for (const x of pickInOrder(free)) {
+      const r = await this.d.repo.createHold({ enquiryId: e.id, designerId: x.id, startsAt: i.start, endsAt: i.end, idempotencyKey: key, callerEmail: i.callerEmail ?? e.callerEmail ?? null, mode: MODE });
+      if (!r.ok) continue; // lost a race for this designer: the database constraint decided; try the next
+      await this.d.repo.confirm(r.booking.id, i.externalId);
+      const now = this.d.now();
+      await this.d.repo.touchLastAssigned(x.id, now);
+      const sent = await this.sendHandoff(r.booking.id, x, e, i.start, false, now);
+      return { ok: true, bookingId: r.booking.id, designerId: x.id, handoffSent: sent };
+    }
+    return { ok: false, error: "no_designer" };
   }
 
   private async slotTaken(e: EnquiryRecord, wantsPrincipal?: boolean): Promise<BookSlotResult> {

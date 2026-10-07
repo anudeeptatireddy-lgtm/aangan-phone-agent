@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll } from "vitest";
 import type { PGlite } from "@electric-sql/pglite";
 import { freshDb } from "./helpers";
 
-const TABLES = ["approved_texts", "audit_flags", "bookings", "call_reviews", "callers", "calls", "crm_links", "dashboard_users", "designers",
+const TABLES = ["approved_texts", "audit_flags", "bookings", "calcom_bookings", "call_reviews", "callers", "calls", "crm_links", "dashboard_users", "designers",
   "enquiries", "escalations", "festival_dates", "handoffs", "outbox", "rule_evaluations", "rule_versions", "studio_hours", "usage_costs", "vip_referrers", "webhook_events"];
 
 let db: PGlite;

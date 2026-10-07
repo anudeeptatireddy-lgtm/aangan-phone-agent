@@ -32,6 +32,14 @@ const Env = z.object({
   GOOGLE_IMPERSONATE_USER: z.string().email().optional(),
   // Bearer/query token for the owner dashboard (Nikhil).
   DASHBOARD_TOKEN: z.string().min(16).optional(),
+  // vaanivoice.ai (Vaani AI Research): API key for call_details/call-history, the secret path segment of our webhook URL, and the dashboard's
+  // per-minute rate (used only to ESTIMATE voice cost: the vendor's cost field has no documented unit).
+  VAANIVOICE_API_KEY: z.string().optional(),
+  VAANIVOICE_CLIENT_ID: z.string().optional(),
+  VAANIVOICE_WEBHOOK_SECRET: z.string().regex(/^[A-Za-z0-9_-]{24,128}$/, "VAANIVOICE_WEBHOOK_SECRET: 24-128 chars of A-Z a-z 0-9 _ -").optional(),
+  VAANIVOICE_RATE_INR_PER_MIN: z.coerce.number().positive().max(1000).optional(),
+  // Cal.com: the HMAC secret entered on the webhook in Cal.com settings (x-cal-signature-256).
+  CALCOM_SIGNING_SECRET: z.string().min(16).optional(),
   // Authenticates the scheduled tick (Vercel sends it as a bearer token).
   CRON_SECRET: z.string().min(16).optional(),
   // Live-transfer targets (E.164). Complaints -> design lead, falling back to front desk; "I want a person" -> front desk.

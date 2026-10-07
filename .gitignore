@@ -21,3 +21,16 @@ supabase/volumes/
 # HARD RULE 1: pricing.md must never enter this repo, any prompt, or any context.
 pricing.md
 **/pricing.md
+
+# local data, scratch and editor state
+.supabase/
+supabase/.temp/
+*.local
+*.log
+*.sqlite
+*.db
+pglite-data/
+.data/
+data/local/
+coverage/
+.DS_Store

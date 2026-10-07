@@ -15,6 +15,8 @@ import { parseServiceAccount } from "@/adapters/calendar/service-account";
 import type { CalendarPort } from "@/core/ports";
 import type { DashboardSource } from "@/core/dashboard/source";
 import { InMemoryDashboardSource } from "./dashboard-source";
+import type { CalBookingStore } from "@/core/calcom/types";
+import { InMemoryCalBookingStore } from "./calcom-store";
 import { OutboxRunner } from "@/core/outbox/runner";
 import { BookingService } from "@/core/booking/service";
 import { DEFAULT_BOOKING_CONFIG, BookingConfig, Designer } from "@/core/booking/types";
@@ -57,6 +59,7 @@ export interface Deps {
   fakeEmail: FakeEmail | undefined;
   outbox: OutboxRunner;
   dashboard: DashboardSource;
+  calStore: CalBookingStore;
   booking: BookingService;
   // Session 4: post-call pipeline
   postcall: InMemoryPostCallRepo;
@@ -117,7 +120,7 @@ export function makeDeps(o: { env?: Record<string, string | undefined>; now?: ()
   const alerts = new AlertDrainer({ repo: postcall, notifier,
     ownerChatId: env.OWNER_TELEGRAM_CHAT_ID ? Number(env.OWNER_TELEGRAM_CHAT_ID) : undefined, nikhilChatId: env.NIKHIL_TELEGRAM_CHAT_ID ? Number(env.NIKHIL_TELEGRAM_CHAT_ID) : undefined });
   return { env, repo: new InMemoryRepo(env.PHONE_HASH_PEPPER), now, hours, designerNames: o.designerNames ?? [],
-    enquiries, bookingRepo, calendar, fakeCalendar, notifier, fakeNotifier, handoff, crm, email, fakeCrm, fakeEmail, outbox, dashboard: new InMemoryDashboardSource(postcall, bookingRepo), booking, postcall, extractor, fakeExtractor, pipeline, alerts };
+    enquiries, bookingRepo, calendar, fakeCalendar, notifier, fakeNotifier, handoff, crm, email, fakeCrm, fakeEmail, outbox, dashboard: new InMemoryDashboardSource(postcall, bookingRepo), calStore: new InMemoryCalBookingStore(), booking, postcall, extractor, fakeExtractor, pipeline, alerts };
 }
 
 // Process-wide singleton for the Next dev server (state is in-memory until Supabase lands).
