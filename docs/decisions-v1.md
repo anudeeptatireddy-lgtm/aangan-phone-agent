@@ -19,7 +19,7 @@ config only and are never put in a prompt, script, log or tool response.
 
 ## B. Wording
 `src/core/scripts.ts` (EN/HI/MR). English approved. Price explanation has **no digits at all** (tested), HI/MR supplied by the
-owner, status `approved_pending_native_check`. All other HI/MR lines are my drafts, status `draft_pending_native_review`.
+owner, status `approved_pending_native_check`. All other HI/MR lines are build-team drafts, status `draft_pending_native_review`.
 The front desk must native-check Hindi and Marathi before go-live. "Never promise Nikhil by name" is tested.
 
 ## C. Operations (status)
@@ -42,11 +42,34 @@ was not in the message, so the Vaani items in `docs/vaani-findings.md` are still
 ## Things I found or assumed while implementing (please confirm)
 1. **T07 source inconsistency.** The transcript says Diwali is "about three weeks away" on 8 Sep; the research PDF dates Diwali 8 Nov 2026
    (8+ weeks), which would **pass** the 8-week rule. The fixture follows the transcript.
-2. **Transfer failure in working hours** uses Nikhil's wording "a senior person will call you by 10am {next working day}", so a
-   complaint whose live transfer fails at noon waits until tomorrow. The 15-minute SLA suggests a faster fallback. Confirm.
+2. ~~Transfer failure in working hours~~ Resolved in round 2 (below).
 3. Not specified, so I assumed: partial home with 3+ rooms uses the two-room threshold (flagged `partial_rooms_threshold_assumed`);
    a full home with unknown BHK uses the 1BHK threshold (flagged `budget_unassessed`); an unknown decision-maker on an office or an
    employee caller is flagged, not blocked.
-4. "I want a person" scripts (in hours / after hours) were not supplied; mine are `draft_not_approved`.
+4. ~~"I want a person" scripts~~ Resolved in round 2 (below).
 5. T16's transcript has no scope; its fixture assumes a full home to match the expected class (a live call would re-ask).
 6. Hindi/Marathi drafts avoid gendered first-person verbs so they work for either voice persona.
+
+## Round 2 — answers from the project owner, 2026-10-07 (Nikhil production sign-off still pending)
+Provenance: all wording and rules below are recorded as **approved by project owner**.
+
+1. **T07 confirmed** as not_fit. Fixtures test the rule against what the caller said ("about three weeks"); the real-calendar mismatch
+   (Diwali 2026 = 8 Nov) is a case-authoring artifact. **New for live calls:** never trust a festival's distance as the caller states it.
+   `src/core/festivals.ts` holds `festival_dates` (Diwali 2026 = 8 Nov; more rows only when the owner supplies dates). Tool `resolve_date`
+   resolves a named festival/event, returns the read-back ("Diwali is on 8 November, so about nine weeks from now. Is that your deadline?"),
+   and the agent runs `check_fit` on the confirmed date. Events with no approved date (e.g. Ganesh Chaturthi, weddings) return
+   `resolved:false` and the agent asks for a calendar date. A festival date already passed is not resolved (next year's rows must be added).
+2. **Failed live transfer: faster fallback (working hours only).** The "10am next working day" script is for after hours only.
+   - Complaint, 15+ minutes of hours left: `callback_sla`, 15-minute SLA starting at the failure; design lead alerted (Telegram, Session 5)
+     immediately; Nikhil alerted if not acknowledged in 10 minutes. Script `complaint_transfer_failed`.
+   - Less than 15 minutes left: the after-hours path (callback by 10am next working day, Nikhil alerted).
+   - Implemented in `planEscalation` (`slaMinutes`, `alertDesignLeadNow`, `alertNikhilIfUnackedMin`), tested at the 15/14-minute boundary.
+3. Both assumptions accepted: partial home with 3+ rooms uses the two-room threshold; unknown BHK uses the 1BHK threshold; both flagged in output.
+4. **"I want a person" wording approved** (EN; HI/MR drafted by the build team, pending native review): in hours "connecting you to our front desk now";
+   transfer failed in hours with 30+ minutes left: front-desk queue item, 30-minute SLA, escalating to the design lead
+   (`human_requested_transfer_failed`); after hours: offer a choice (take details for a morning callback, or book the consultation now).
+   The choice is a second `request_human` call with `escalation_id` + `choice: callback|book`. "Is this a robot?" → script `robot_confirm`.
+   *Assumption to confirm:* for a person-request with fewer than 30 minutes of hours left after a failed transfer I use the after-hours choice.
+5. **Open:** the Vaani and GitHub fields were left as "[fill in…]" placeholders, so the Vaani key's origin / real key and the repo URL are
+   still unknown. Live calls stay blocked on Vaani.
+6. **Order:** Session 1 (foundation + schema) first, then Session 3 (booking). Supabase project, test calendar and Telegram chat id to follow.

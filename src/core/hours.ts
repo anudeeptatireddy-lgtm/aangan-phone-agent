@@ -49,3 +49,10 @@ const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Frida
 export function istWeekdayName(d: Date): (typeof WEEKDAYS)[number] {
   return WEEKDAYS[istParts(d).wd]!;
 }
+
+/** Whole minutes until closing time today (IST); 0 if the studio is not open right now. */
+export function minutesLeftToday(d: Date, cfg: HoursConfig = DEFAULT_HOURS): number {
+  if (!isWorkingTime(d, cfg)) return 0;
+  const closeMs = istMidnightMs(istParts(d)) + cfg.closeHour * 3_600_000;
+  return Math.floor((closeMs - d.getTime()) / 60_000);
+}

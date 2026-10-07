@@ -39,6 +39,15 @@ await scenario("Hard case 9: restaurant -> decline kindly (Hindi)", async () => 
 
 await scenario("Hard case 10: 'Is this a robot? I want a person.'", async () => {
   show("request_human(human_requested)", await call("/api/tools/request-human", { reason: "human_requested" }));
+  show("request_human(complaint, transfer failed)", await call("/api/tools/request-human", { reason: "complaint", transfer_failed: true }));
+});
+
+await scenario("T07 with a festival: never trust the caller's distance; resolve, read back, then check", async () => {
+  const r = await call("/api/tools/resolve-date", { text: "I want it done before Diwali, it's only three weeks away" });
+  show("resolve_date", r);
+  const b = r.body as { date?: string };
+  if (b?.date) show("check_fit(confirmed date)", await call("/api/tools/check-fit", { location: "Kothrud", project_type: "home", scope: "partial_home", rooms_count: 2, deadline_date: b.date }));
+  show("resolve_date(unknown event)", await call("/api/tools/resolve-date", { text: "before Ganesh Chaturthi" }));
 });
 
 await scenario("T09-style angry existing client (unknown number, keyword guard)", async () => {

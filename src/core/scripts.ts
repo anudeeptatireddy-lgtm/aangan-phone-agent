@@ -3,14 +3,13 @@
 // Other Hindi/Marathi lines are drafts pending native review. NO script may contain a price, rate or amount.
 
 export type Locale = "en" | "hi" | "mr";
-export type ScriptStatus = "approved" | "approved_pending_native_check" | "draft_pending_native_review" | "draft_not_approved";
+export type ScriptStatus = "approved" | "approved_pending_native_check" | "draft_pending_native_review";
 export interface Script { text: string; status: ScriptStatus }
 type Trio = Record<Locale, Script>;
 
 const A = (text: string): Script => ({ text, status: "approved" });
 const N = (text: string): Script => ({ text, status: "approved_pending_native_check" });
 const D = (text: string): Script => ({ text, status: "draft_pending_native_review" });
-const X = (text: string): Script => ({ text, status: "draft_not_approved" });
 
 export const SCRIPTS = {
   price_explanation: {
@@ -73,16 +72,31 @@ export const SCRIPTS = {
     hi: D("जो हुआ उसके लिए मुझे खेद है। मैंने इसे हमारी सीनियर टीम को बता दिया है, और {when} सुबह 10 बजे तक कोई सीनियर व्यक्ति आपको कॉल करेगा। आपको दोबारा सब कुछ समझाने की ज़रूरत नहीं होगी।"),
     mr: D("हे घडलं त्याबद्दल मला खेद आहे. मी हे आमच्या वरिष्ठ टीमला कळवलं आहे, आणि {when} सकाळी 10 वाजेपर्यंत एक वरिष्ठ व्यक्ती तुम्हाला कॉल करेल. तुम्हाला पुन्हा सगळं समजावून सांगावं लागणार नाही."),
   },
-  // Not supplied by Nikhil: drafted by the build team, needs approval before go-live.
+  // "I want a person" and failed-transfer wording: approved by the project owner (round 2); HI/MR drafted by the build team.
+  complaint_transfer_failed: {
+    en: A("I couldn't connect you just now. I've alerted our senior team, and a senior person will call you back within 15 minutes."),
+    hi: D("अभी आपकी कॉल जोड़ी नहीं जा सकी। मैंने हमारी सीनियर टीम को अलर्ट कर दिया है, और कोई सीनियर व्यक्ति 15 मिनट के भीतर आपको वापस कॉल करेगा।"),
+    mr: D("आत्ता तुमचा कॉल जोडता आला नाही. मी आमच्या वरिष्ठ टीमला अलर्ट केलं आहे, आणि एक वरिष्ठ व्यक्ती 15 मिनिटांत तुम्हाला परत कॉल करेल."),
+  },
   human_requested_in_hours: {
-    en: X("Of course. I'm a virtual assistant, so let me connect you to someone on our team now."),
-    hi: X("बिल्कुल। मैं एक वर्चुअल असिस्टेंट हूँ, इसलिए आपको अभी हमारी टीम के किसी व्यक्ति से जोड़ता हूँ।"),
-    mr: X("नक्कीच. मी एक व्हर्च्युअल असिस्टंट आहे, त्यामुळे तुम्हाला आत्ता आमच्या टीममधील एखाद्या व्यक्तीशी जोडतो."),
+    en: A("Of course. I'm connecting you to our front desk now."),
+    hi: D("ज़रूर। आपको अभी हमारे फ़्रंट डेस्क से जोड़ा जा रहा है।"),
+    mr: D("नक्कीच. तुम्हाला आत्ता आमच्या फ्रंट डेस्कशी जोडलं जात आहे."),
+  },
+  human_requested_transfer_failed: {
+    en: A("I couldn't connect you just now. I've asked our front desk to call you back within 30 minutes."),
+    hi: D("अभी आपकी कॉल जोड़ी नहीं जा सकी। मैंने हमारे फ़्रंट डेस्क से कहा है कि वे 30 मिनट के भीतर आपको वापस कॉल करें।"),
+    mr: D("आत्ता तुमचा कॉल जोडता आला नाही. मी आमच्या फ्रंट डेस्कला 30 मिनिटांत तुम्हाला परत कॉल करायला सांगितलं आहे."),
   },
   human_requested_after_hours: {
-    en: X("Of course. I'm a virtual assistant, and our team is not available right now. I've passed your details on and someone will call you during working hours, Monday to Friday, 10am to 7pm, {when}."),
-    hi: X("बिल्कुल। मैं एक वर्चुअल असिस्टेंट हूँ और हमारी टीम अभी उपलब्ध नहीं है। मैंने आपकी जानकारी आगे भेज दी है, और कोई सोमवार से शुक्रवार, सुबह 10 से शाम 7 बजे के बीच, {when} आपको कॉल करेगा।"),
-    mr: X("नक्कीच. मी एक व्हर्च्युअल असिस्टंट आहे आणि आमची टीम सध्या उपलब्ध नाही. मी तुमची माहिती पुढे दिली आहे, आणि कोणीतरी सोमवार ते शुक्रवार, सकाळी 10 ते संध्याकाळी 7 या वेळेत, {when} तुम्हाला कॉल करेल."),
+    en: A("Our team is in from 10am to 7pm, Monday to Friday. I can take your details so they call you {whenMorning}, or I can book your consultation myself right now. Which would you prefer?"),
+    hi: D("हमारी टीम सोमवार से शुक्रवार, सुबह 10 से शाम 7 बजे तक उपलब्ध रहती है। आपकी जानकारी नोट करके उन्हें {whenMorning} कॉल करने के लिए कहा जा सकता है, या अभी यहीं आपकी कंसल्टेशन बुक की जा सकती है। आप कौन सा पसंद करेंगे?"),
+    mr: D("आमची टीम सोमवार ते शुक्रवार, सकाळी 10 ते संध्याकाळी 7 पर्यंत उपलब्ध असते. तुमची माहिती नोंदवून त्यांना {whenMorning} कॉल करायला सांगता येईल, किंवा आत्ताच इथे तुमचं कन्सल्टेशन बुक करता येईल. तुम्हाला कोणतं आवडेल?"),
+  },
+  robot_confirm: {
+    en: A("Yes, I'm Aangan's virtual assistant. I can help you book a consultation, or connect you to a person. Whichever you prefer."),
+    hi: D("जी हाँ, मैं Aangan का वर्चुअल असिस्टेंट हूँ। मैं आपकी कंसल्टेशन बुक करने में मदद के लिए तैयार हूँ, या आपको किसी व्यक्ति से जोड़ा जा सकता है। जो आप चाहें।"),
+    mr: D("हो, मी Aangan चा व्हर्च्युअल असिस्टंट आहे. मी तुमचं कन्सल्टेशन बुक करायला मदत करायला तयार आहे, किंवा तुम्हाला एखाद्या व्यक्तीशी जोडता येईल. तुम्हाला जे हवं ते."),
   },
 } satisfies Record<string, Trio>;
 export type ScriptKey = keyof typeof SCRIPTS;
@@ -106,6 +120,12 @@ const DAY: Record<Locale, Record<string, string>> = {
   mr: { Monday: "सोमवारी", Tuesday: "मंगळवारी", Wednesday: "बुधवारी", Thursday: "गुरुवारी", Friday: "शुक्रवारी", Saturday: "शनिवारी", Sunday: "रविवारी" },
 };
 const TODAY: Record<Locale, string> = { en: "today", hi: "आज", mr: "आज" };
+const MORNING_DAY: Record<Locale, Record<string, string>> = {
+  en: Object.fromEntries(Object.entries(DAY.en).map(([k, v]) => [k, `${v} morning`])),
+  hi: Object.fromEntries(Object.entries(DAY.hi).map(([k, v]) => [k, `${v} सुबह`])),
+  mr: Object.fromEntries(Object.entries(DAY.mr).map(([k, v]) => [k, `${v} सकाळी`])),
+};
+const THIS_MORNING: Record<Locale, string> = { en: "this morning", hi: "आज सुबह", mr: "आज सकाळी" };
 
 export interface ScriptVars { when?: "today" | "day"; day?: string }
 
@@ -114,5 +134,6 @@ export function renderScript(key: string, locale: Locale, vars: ScriptVars = {})
   if (!s) throw new Error(`Unknown script ${key}/${locale}`);
   const isDay = vars.when === "day" || (vars.when === undefined && !!vars.day);
   const when = isDay && vars.day ? (DAY[locale][vars.day] ?? vars.day) : TODAY[locale];
-  return s.text.replace("{when}", when);
+  const whenMorning = isDay && vars.day ? (MORNING_DAY[locale][vars.day] ?? vars.day) : THIS_MORNING[locale];
+  return s.text.replace("{when}", when).replace("{whenMorning}", whenMorning);
 }

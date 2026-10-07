@@ -76,45 +76,98 @@ describe("check_fit (real engine)", () => {
 });
 
 describe("request_human", () => {
-  it("complaint in hours -> live transfer, recorded", async () => {
-    const res = await handleTool("request_human", post("/x", { reason: "complaint", phone: "9000000009", summary: "designer silent 5 days" }), deps);
-    const j = await res.json();
-    expect(j.mode).toBe("live_transfer");
+  it("complaint in hours -> live transfer to the design lead, approved script returned, recorded without the phone", async () => {
+    const j = await (await handleTool("request_human", post("/x", { reason: "complaint", phone: "9000000009", summary: "designer silent 5 days" }), deps)).json();
+    expect(j).toMatchObject({ mode: "live_transfer", transfer_target: "design_lead" });
+    expect(j.caller_message).toBe("I'm sorry this has happened. I'm connecting you to a senior member of our team now.");
     expect(deps.repo.escalations).toHaveLength(1);
     expect(JSON.stringify(deps.repo.escalations)).not.toContain("9000000009");
-  });
-  it("complaint in hours goes to the design lead; the approved script is returned", async () => {
-    const j = await (await handleTool("request_human", post("/x", { reason: "complaint" }), deps)).json();
-    expect(j.transfer_target).toBe("design_lead");
-    expect(j.caller_message).toBe("I'm sorry this has happened. I'm connecting you to a senior member of our team now.");
   });
   it("'I want a person' goes to the front desk, never to Nikhil", async () => {
     const j = await (await handleTool("request_human", post("/x", { reason: "human_requested" }), deps)).json();
     expect(j).toMatchObject({ mode: "live_transfer", transfer_target: "front_desk", nikhil_alert_pending: false });
+    expect(j.caller_message).toBe("Of course. I'm connecting you to our front desk now.");
   });
-  it("transfer failed -> callback by 10am next working day + Nikhil alert (complaint)", async () => {
+  it("complaint transfer failed in hours -> 15-minute SLA, design lead alerted now, Nikhil if unacknowledged in 10 min", async () => {
     const j = await (await handleTool("request_human", post("/x", { reason: "complaint", transfer_failed: true }), deps)).json();
-    expect(j).toMatchObject({ mode: "callback_promised", nikhil_alert_pending: true, caller_script: "complaint_after_hours" });
+    expect(j).toMatchObject({ mode: "callback_sla", sla_minutes: 15, alert_design_lead_now: true, alert_nikhil_if_unacked_min: 10, nikhil_alert_pending: false });
+    expect(j.callback_due_at).toBe("2026-10-07T06:45:00.000Z");
+    expect(j.caller_message).toBe("I couldn't connect you just now. I've alerted our senior team, and a senior person will call you back within 15 minutes.");
+  });
+  it("person requested, transfer failed in hours -> front desk queue item, 30-minute SLA, escalating to the design lead", async () => {
+    const j = await (await handleTool("request_human", post("/x", { reason: "human_requested", transfer_failed: true }), deps)).json();
+    expect(j).toMatchObject({ mode: "callback_sla", sla_minutes: 30, queue: "front_desk", queue_escalates_to: "design_lead" });
+    expect(j.caller_message).toContain("front desk to call you back within 30 minutes");
+  });
+  it("no transfer number configured -> never pretends to transfer (falls to the failed-transfer path)", async () => {
+    const d = makeDeps({ env: { NODE_ENV: "test", PHONE_HASH_PEPPER: "pepper-0123456789ab", TOOL_SHARED_SECRET: TOOL_SECRET }, now: () => NOW });
+    expect((await (await handleTool("request_human", post("/x", { reason: "complaint" }), d)).json()).mode).toBe("callback_sla");
+  });
+  it("complaint after hours -> callback by 10am next working day + Nikhil alert pending", async () => {
+    const d = mkDeps(NIGHT);
+    const j = await (await handleTool("request_human", post("/x", { reason: "complaint" }), d)).json();
+    expect(j).toMatchObject({ mode: "callback_promised", callback_due_at: "2026-10-08T04:30:00.000Z", nikhil_alert_pending: true });
     expect(j.caller_message).toContain("by 10am on Thursday");
   });
-  it("no transfer number configured -> never pretends to transfer", async () => {
-    const d = makeDeps({ env: { NODE_ENV: "test", PHONE_HASH_PEPPER: "pepper-0123456789ab", TOOL_SHARED_SECRET: TOOL_SECRET }, now: () => NOW });
-    expect((await (await handleTool("request_human", post("/x", { reason: "complaint" }), d)).json()).mode).toBe("callback_promised");
+  it("complaint transfer failed with <15 minutes of hours left -> after-hours script", async () => {
+    const d = mkDeps(new Date("2026-10-07T13:16:00Z")); // 18:46 IST
+    const j = await (await handleTool("request_human", post("/x", { reason: "complaint", transfer_failed: true }), d)).json();
+    expect(j).toMatchObject({ mode: "callback_promised", nikhil_alert_pending: true });
   });
   it("review: tells the caller to expect a call in working hours (today)", async () => {
     const j = await (await handleTool("request_human", post("/x", { reason: "review" }), deps)).json();
     expect(j).toMatchObject({ mode: "queued_review", caller_script: "expect_call" });
     expect(j.caller_message).toContain("Monday to Friday, 10am to 7pm, today");
   });
-  it("complaint after hours -> callback by 10am + Nikhil alert pending", async () => {
-    const d = mkDeps(NIGHT);
-    const j = await (await handleTool("request_human", post("/x", { reason: "complaint" }), d)).json();
-    expect(j.mode).toBe("callback_promised");
-    expect(j.callback_due_at).toBe("2026-10-08T04:30:00.000Z");
-    expect(j.nikhil_alert_pending).toBe(true);
-  });
   it("rejects unknown reasons", async () => {
     expect((await handleTool("request_human", post("/x", { reason: "chitchat" }), deps)).status).toBe(400);
+  });
+
+  describe("after hours: 'I want a person' offers a choice", () => {
+    it("first call records a pending item and offers the choice", async () => {
+      const d = mkDeps(NIGHT);
+      const j = await (await handleTool("request_human", post("/x", { reason: "human_requested" }), d)).json();
+      expect(j).toMatchObject({ mode: "offer_choice", nikhil_alert_pending: false });
+      expect(j.caller_message).toContain("I can take your details so they call you on Thursday morning, or I can book your consultation myself right now.");
+      expect(d.repo.escalations).toHaveLength(1);
+    });
+    it("choice=callback -> promised for the next working morning (updates the same item)", async () => {
+      const d = mkDeps(NIGHT);
+      const first = await (await handleTool("request_human", post("/x", { reason: "human_requested" }), d)).json();
+      const j = await (await handleTool("request_human", post("/x", { reason: "human_requested", escalation_id: first.escalation_id, choice: "callback" }), d)).json();
+      expect(j).toMatchObject({ mode: "callback_promised", escalation_id: first.escalation_id, callback_due_at: "2026-10-08T04:30:00.000Z" });
+      expect(d.repo.escalations).toHaveLength(1);
+      expect(d.repo.escalations[0]!.mode).toBe("callback_promised");
+    });
+    it("choice=book -> carries on qualifying and booking", async () => {
+      const d = mkDeps(NIGHT);
+      const first = await (await handleTool("request_human", post("/x", { reason: "human_requested" }), d)).json();
+      const j = await (await handleTool("request_human", post("/x", { reason: "human_requested", escalation_id: first.escalation_id, choice: "book" }), d)).json();
+      expect(j).toMatchObject({ mode: "continue_booking", next: "continue_qualifying" });
+    });
+    it("unknown escalation id -> 404", async () => {
+      expect((await handleTool("request_human", post("/x", { reason: "human_requested", escalation_id: "nope", choice: "book" }), deps)).status).toBe(404);
+    });
+  });
+});
+
+describe("resolve_date (festival_dates)", () => {
+  const sep8 = () => mkDeps(new Date("2026-09-08T05:00:00Z"));
+  it("resolves Diwali and returns the approved read-back", async () => {
+    const j = await (await handleTool("resolve_date", post("/x", { text: "before Diwali" }), sep8())).json();
+    expect(j).toMatchObject({ resolved: true, date: "2026-11-08", readback: "Diwali is on 8 November, so about nine weeks from now. Is that your deadline?", readback_status: "approved" });
+  });
+  it("returns Hindi read-back when asked", async () => {
+    const j = await (await handleTool("resolve_date", post("/x", { text: "दिवाली से पहले", language: "hi" }), sep8())).json();
+    expect(j.readback).toContain("नवंबर");
+  });
+  it("unknown events must be asked for as a calendar date, never inferred from a stated distance", async () => {
+    const j = await (await handleTool("resolve_date", post("/x", { text: "before Ganesh Chaturthi, it's two weeks away" }), sep8())).json();
+    expect(j).toMatchObject({ resolved: false, reason: "unknown_event" });
+    expect(j.instruction).toMatch(/calendar date/i);
+  });
+  it("400 on missing text", async () => {
+    expect((await handleTool("resolve_date", post("/x", {}), sep8())).status).toBe(400);
   });
 });
 

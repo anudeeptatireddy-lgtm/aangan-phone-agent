@@ -11,6 +11,11 @@ export interface EscalationRecord {
   alertNikhil: boolean;
   summary?: string;
   createdAt: string;
+  slaMinutes?: number;
+  queue?: string;
+  queueEscalatesTo?: string;
+  alertDesignLeadNow?: boolean;
+  alertNikhilIfUnackedMin?: number;
 }
 
 /** Local-dev / test store. Replaced by Supabase repositories once the schema is approved. */
@@ -44,6 +49,11 @@ export class InMemoryRepo implements CallRepo {
     const rec = { ...e, id: randomUUID() };
     this.escalations.push(rec);
     return rec;
+  }
+  getEscalation(id: string): EscalationRecord | undefined { return this.escalations.find((e) => e.id === id); }
+  updateEscalation(id: string, patch: Partial<EscalationRecord>): EscalationRecord | undefined {
+    const e = this.getEscalation(id);
+    return e ? Object.assign(e, patch) : undefined;
   }
   /** Idempotent inbox: returns true if the event id was already seen. */
   recordWebhookEvent(id: string, type: string, receivedAt: string): boolean {

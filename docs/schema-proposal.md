@@ -44,7 +44,7 @@ create table designers (
   max_per_day int
 );  -- roster comes from CSV import + admin edit; seed 3 test designers (one principal, one design lead) for build
 
--- rules & wording (versioned, Nikhil-approved) --------------------------
+-- rules & wording (versioned, approved by project owner; Nikhil production sign-off pending) --------------------------
 create table rule_versions (
   id uuid primary key default gen_random_uuid(),
   version int not null unique,
@@ -204,7 +204,7 @@ Notes
 - `vaani_call_id` and any Vaani-specific columns are provisional until Session 2 (I have not seen Vaani docs).
 - Dashboard metrics are SQL views over these tables (e.g. median `answer_latency_ms`, `% answered < 1 hour` from
   `calls`, `% booked on call` from `bookings.booked_on_call`, accept time from `handoffs`, escalation SLA from `escalations`).
-- Rule thresholds (incl. any budget-floor numbers supplied by Nikhil) live only in `rule_versions.config`.
+- Rule thresholds (incl. the budget thresholds set by the founder's office) live only in `rule_versions.config`.
 
 ## Row-level security (every table)
 ```sql
