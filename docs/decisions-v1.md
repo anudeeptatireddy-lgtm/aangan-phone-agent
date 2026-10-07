@@ -87,3 +87,24 @@ Provenance: all wording and rules below are recorded as **approved by project ow
    returns the English read-back regardless of the language requested).
 6. **Session 3:** booking against adapter interfaces with in-memory fakes for Google Calendar and Telegram; real adapters swapped in when the
    owner supplies the test calendar and Telegram chat id.
+
+## Session 3 — booking (built against ports, in-memory fakes) — assumptions to confirm
+Confirmed by the owner (round 3): person-request with < 30 min left after a failed transfer → after-hours choice; HI/MR stay drafts; festival read-back English-only.
+
+Built and tested: `get_slots`, `book_slot`, rotation, free/busy with buffer, hold → calendar event → confirm → handoff, idempotency, double-booking
+guard (in-memory and Postgres exclusion constraint, one shared contract suite), handoff note builder, working-minute due time. Google Calendar and Telegram
+are **ports with in-memory fakes** (`src/adapters/calendar/fake.ts`, `src/adapters/notify/fake.ts`); the real adapters need the owner's test calendar and Telegram chat id.
+
+Behaviour (owner-approved earlier): rotation = least-recently-assigned eligible designer (never-assigned first, ties by name); Saturday bookable if a
+calendar is free; a note is sent to the designer with Accept / Can't take it buttons; `due_at` = sent + 30 **working** minutes; only an enquiry the rules
+engine called `fit` can be offered slots or booked (enforced in code, tested).
+
+**Operational parameters I chose (NOT specified by the owner; `DEFAULT_BOOKING_CONFIG`, one line each to change):**
+1. Consultation length **60 min**, start times every **30 min**, window **10:00–19:00**, **Mon–Sat, no Sundays**.
+2. **30-minute buffer** before and after any other event (travel / overrun), applied to the designer's calendar and to our own bookings.
+3. Earliest bookable time **2 hours from now**; horizon **14 days**; **3 slots** read out, earliest on each of the first days.
+4. Booking mode is always **site visit** (the research plan's template); studio / online visits are not modelled yet.
+5. A designer without a calendar id cannot be offered (free/busy unknown). The seeded TEST designers have none until the real calendar exists.
+6. If the Telegram send fails, **the booking stands** (the caller was promised it) and the handoff stays `pending` for a retry job (Session 5).
+7. If no designer is eligible, or the calendar is unreachable, the agent is told `request_human_review` rather than inventing a slot.
+8. The Telegram note carries **no phone or email**; it shows a budget only if the caller volunteered it.

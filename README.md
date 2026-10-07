@@ -17,3 +17,8 @@ State is in-memory until Supabase (Session 1). `check_fit` runs the real determi
 `supabase/migrations/` is the schema (authoritative), `supabase/seed.sql` is generated: `pnpm db:seed:gen`. `pnpm test` runs the
 migration and seed against an in-process Postgres (PGlite), so no Docker is needed for the fast loop. The source of truth is the Supabase
 local stack: `pnpm db:start` (needs Docker), `pnpm test:supabase-local`, `pnpm db:reset`, `pnpm db:stop`. Nothing is applied to a hosted project yet. Env: `PHONE_ENC_KEY` (64 hex) encrypts phone numbers; `PHONE_HASH_PEPPER` keys the lookup hash.
+
+## Booking (Session 3)
+`src/core/booking/*` is pure logic; Google Calendar and Telegram are ports (`src/core/ports.ts`) with in-memory fakes in `src/adapters/*/fake.ts`.
+`PgBookingRepo` (`src/db/pg-booking-repo.ts`) and `InMemoryBookingRepo` pass the same contract suite (`tests/booking/repo.contract.ts`); the
+double-booking guard is the `no_double_booking` exclusion constraint. `pnpm simulate` now runs check_fit -> get_slots -> book_slot against localhost.

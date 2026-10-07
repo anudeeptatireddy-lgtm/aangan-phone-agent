@@ -81,5 +81,9 @@ See `docs/session-0-plan.md` §5 and `docs/decisions-v1.md`. Status:
 - Round 2 (2026-10-07): festival_dates + `resolve_date`, failed-transfer SLA paths, approved "I want a person" wording. Provenance is recorded as "approved by project owner".
 - Session 1 (foundation + schema v2): **done locally** — migration + generated seed + CI + phone encryption, tested on PGlite (`tests/db/`). Verified on the local Supabase stack (Docker; `pnpm test:supabase-local`); no hosted project yet.
 - Round 3: Vaani key verified invalid for vaanilabs.in (needs `vv_live_`), gap list in `docs/vaani-findings.md`; festival read-back English-only until native review. **Commit and push at the end of every session** (GitHub remote pending `gh auth login`).
-- Next: Session 3 (booking: designers/bookings tables, Google Calendar, rotation); Vaani docs needed for live calls.
+- Session 3 (booking): **done against ports with in-memory fakes** (Google Calendar, Telegram): `get_slots`/`book_slot`, rotation, buffer-aware free/busy,
+  hold -> event -> confirm -> handoff, idempotency, double-booking guard (in-memory + Postgres exclusion constraint, one shared contract suite, also run on the
+  local Supabase with real concurrent connections). Operational parameters I chose are listed in `docs/decisions-v1.md` (Session 3) for the owner to confirm.
+  Swap the fakes for the real adapters once the owner supplies the test calendar and Telegram chat id.
+- Next: Session 4 (post-call pipeline: webhook ingest, Gemini extraction, enquiry persistence to Postgres, price/complaint scans); real Calendar/Telegram adapters; Vaani docs for live calls.
 - Local-first: `pnpm dev`, `pnpm test`, `pnpm simulate`. Push only to a private remote the owner creates.

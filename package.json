@@ -11,7 +11,7 @@
     "test:watch": "vitest",
     "simulate": "tsx scripts/simulate-call.ts",
     "db:seed:gen": "tsx scripts/gen-seed.ts",
-    "test:supabase-local": "SUPABASE_LOCAL=1 vitest run tests/db-local",
+    "test:supabase-local": "SUPABASE_LOCAL=1 vitest run tests/db-local --no-file-parallelism",
     "db:start": "supabase start -x realtime,storage-api,imgproxy,mailpit,studio,edge-runtime,logflare,vector,supavisor,postgres-meta",
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset"

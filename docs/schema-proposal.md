@@ -36,3 +36,7 @@ A test fails if a table is added without being listed (and therefore without RLS
 
 Renamed from the v1 proposal to satisfy the strict reading: `usage_costs.unit_price → unit_cost`, `fx_rate → fx_inr_per_usd`,
 `enquiries.price_asked → asked_for_number`.
+
+## Session 3 addition
+`handoffs.status` gained `pending` (default): the booking is confirmed but the Telegram note has not been delivered yet; a retry job (Session 5) sends it.
+The booking repo contract also runs on the local Supabase: `tests/db-local/booking-repo.local.test.ts` (12 checks incl. two simultaneous holds on real connections).

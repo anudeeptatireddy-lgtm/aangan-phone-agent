@@ -30,6 +30,23 @@ const LookupBody = z.object({
   first_utterance: z.string().optional(),
 });
 const LanguageBody = z.object({ language: z.enum(["en", "hi", "mr"]).default("en") });
+const EnquiryExtras = z.object({
+  enquiry_id: z.string().optional(),
+  caller_name: z.string().max(120).optional(),
+  caller_email: z.string().email().optional(),
+  phone: z.string().optional(),
+});
+const hhmm = z.string().regex(/^\d{2}:\d{2}$/);
+const ymd = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const GetSlotsBody = z.object({
+  enquiry_id: z.string(), wants_principal: z.boolean().optional(), count: z.number().int().min(1).max(6).optional(),
+  earliest_date: ymd.optional(), on_date: ymd.optional(), after_time: hhmm.optional(), before_time: hhmm.optional(),
+  weekday_only: z.boolean().optional(), weekend_only: z.boolean().optional(),
+});
+const BookSlotBody = z.object({
+  enquiry_id: z.string(), start: z.string(), caller_name: z.string().max(120).optional(), caller_email: z.string().email().optional(),
+  wants_principal: z.boolean().optional(), idempotency_key: z.string().max(200).optional(),
+});
 const ResolveDateBody = z.object({ text: z.string().min(1), language: z.enum(["en", "hi", "mr"]).default("en") });
 const RequestHumanBody = z.object({
   transfer_failed: z.boolean().optional(),
@@ -45,9 +62,6 @@ const RequestHumanBody = z.object({
 
 export async function handleTool(tool: ToolName, req: Request, deps: Deps): Promise<Response> {
   if (!authorized(req, deps.env.TOOL_SHARED_SECRET)) return json(401, { error: "unauthorized" });
-
-  // Booking arrives in the next session; never fabricate a slot.
-  if (tool === "get_slots" || tool === "book_slot") return json(501, { error: "not_implemented", detail: "booking tools are built in Session 3" });
 
   let body: unknown;
   try { body = await req.json(); } catch { return json(400, { error: "invalid_json" }); }
@@ -67,10 +81,42 @@ export async function handleTool(tool: ToolName, req: Request, deps: Deps): Prom
       const p = CheckFitInput.safeParse(body);
       if (!p.success) return json(400, { error: "invalid_body", issues: p.error.issues.map((i) => i.path.join(".")) });
       const lang = (LanguageBody.safeParse(body).data?.language ?? "en") as Locale;
+      const extras = EnquiryExtras.safeParse(body);
+      if (!extras.success) return json(400, { error: "invalid_body", issues: extras.error.issues.map((i) => i.path.join(".")) });
       const out = checkFit(p.data, now, RULES_V1); // budget_inr is consumed here, never echoed
+      const parsedInput = CheckFitInput.parse(body);
+      const e164 = extras.data.phone ? normalizeE164(extras.data.phone) : null;
+      const callerId = e164 ? (await deps.repo.findCallerByPhone(e164))?.id : undefined;
+      const fields = { input: parsedInput, fit: out.result, reasonCodes: out.reason_codes, nextAction: out.next_action, flags: out.flags, ruleVersion: out.rule_version,
+        ...(extras.data.caller_name ? { callerName: extras.data.caller_name } : {}), ...(extras.data.caller_email ? { callerEmail: extras.data.caller_email } : {}),
+        ...(callerId ? { callerId } : {}) };
+      let enquiryId = extras.data.enquiry_id;
+      if (enquiryId) { if (!deps.enquiries.update(enquiryId, fields)) return json(404, { error: "enquiry_not_found" }); }
+      else enquiryId = deps.enquiries.create({ ...fields, language: LanguageBody.safeParse(body).data?.language, createdAt: now.toISOString() }).id;
       const caller_messages = out.script_keys.map((key) => ({ key, text: renderScript(key, lang), status: SCRIPTS[key as ScriptKey][lang].status }));
       log("info", "check_fit", { result: out.result, action: out.next_action, reasons: out.reason_codes, version: out.rule_version });
-      return json(200, { ...out, caller_messages });
+      return json(200, { ...out, caller_messages, enquiry_id: enquiryId });
+    }
+    case "get_slots": {
+      const p = GetSlotsBody.safeParse(body);
+      if (!p.success) return json(400, { error: "invalid_body", issues: p.error.issues.map((i) => i.path.join(".")) });
+      const enquiry = deps.enquiries.get(p.data.enquiry_id);
+      if (!enquiry) return json(404, { error: "enquiry_not_found" });
+      const r = await deps.booking.getSlots({ enquiry, wantsPrincipal: p.data.wants_principal, count: p.data.count,
+        prefs: { earliestDate: p.data.earliest_date, onDate: p.data.on_date, afterTime: p.data.after_time, beforeTime: p.data.before_time,
+          weekdayOnly: p.data.weekday_only, weekendOnly: p.data.weekend_only } });
+      log("info", "get_slots", { ok: r.ok, offered: r.slots.length, next: r.next_action });
+      return json(200, r);
+    }
+    case "book_slot": {
+      const p = BookSlotBody.safeParse(body);
+      if (!p.success) return json(400, { error: "invalid_body", issues: p.error.issues.map((i) => i.path.join(".")) });
+      const enquiry = deps.enquiries.get(p.data.enquiry_id);
+      if (!enquiry) return json(404, { error: "enquiry_not_found" });
+      const r = await deps.booking.bookSlot({ enquiry, start: p.data.start, callerEmail: p.data.caller_email, callerName: p.data.caller_name,
+        wantsPrincipal: p.data.wants_principal, idempotencyKey: p.data.idempotency_key });
+      log(r.ok ? "info" : "warn", "book_slot", r.ok ? { booking_id: r.booking_id, handoff_sent: r.handoff_sent, replayed: r.replayed } : { error: r.error });
+      return json(200, r);
     }
     case "resolve_date": {
       const p = ResolveDateBody.safeParse(body);

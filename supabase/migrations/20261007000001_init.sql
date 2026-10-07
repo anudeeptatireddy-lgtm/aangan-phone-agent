@@ -171,8 +171,8 @@ create table handoffs (
   sent_at timestamptz, due_at timestamptz,   -- due_at = sent + 30 working minutes
   accepted_at timestamptz, declined_at timestamptz, decline_reason text,
   reassigned_to_handoff_id uuid references handoffs(id), design_lead_alerted_at timestamptz,
-  status text not null check (status in ('sent','accepted','declined','timed_out','reassigned'))
-);
+  status text not null default 'pending' check (status in ('pending','sent','accepted','declined','timed_out','reassigned'))
+);                                           -- 'pending' = booking confirmed but the Telegram note has not been delivered yet
 
 create table escalations (
   id uuid primary key default gen_random_uuid(),

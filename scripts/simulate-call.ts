@@ -70,8 +70,25 @@ await scenario("T16-style repeat caller whose earlier note was lost", async () =
   show("lookup_caller", await call("/api/tools/lookup-caller", { phone: "9000000004", intent: "new_enquiry", first_utterance: "I called on Monday about a project, it's been two days" }));
 });
 
-await scenario("Booking tools are not built (must never fake a slot)", async () => {
-  show("get_slots", await call("/api/tools/get-slots", {}));
+await scenario("Booking end to end (fake calendar + fake Telegram): check_fit -> get_slots -> book_slot", async () => {
+  const fit = await call("/api/tools/check-fit", { location: "Kothrud", project_type: "home", scope: "full_home", bhk: 3, carpet_sqft: 1400, deadline_date: "2027-03-31",
+    decision_maker: "owner", owners_attending: true, caller_name: "Priya", caller_email: "priya@example.com" });
+  show("check_fit", fit);
+  const id = (fit.body as { enquiry_id: string }).enquiry_id;
+  const slots = await call("/api/tools/get-slots", { enquiry_id: id });
+  show("get_slots", slots);
+  const first = (slots.body as { slots: { start: string }[] }).slots[1]!;
+  const booked = await call("/api/tools/book-slot", { enquiry_id: id, start: first.start, idempotency_key: "sim-1" });
+  show("book_slot", booked);
+  show("book_slot (retry, same key)", await call("/api/tools/book-slot", { enquiry_id: id, start: first.start, idempotency_key: "sim-1" }));
+});
+
+await scenario("A non-fit enquiry can never be booked, even if the model tries (Talegaon => human review)", async () => {
+  const fit = await call("/api/tools/check-fit", { location: "Talegaon", project_type: "home", scope: "full_home", bhk: 3 });
+  show("check_fit", fit);
+  const id = (fit.body as { enquiry_id: string }).enquiry_id;
+  show("get_slots", await call("/api/tools/get-slots", { enquiry_id: id }));
+  show("book_slot", await call("/api/tools/book-slot", { enquiry_id: id, start: new Date(Date.now() + 3 * 86400e3).toISOString() }));
 });
 
 await scenario("Auth: wrong secret is rejected", async () => {

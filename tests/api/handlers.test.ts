@@ -171,13 +171,6 @@ describe("resolve_date (festival_dates)", () => {
   });
 });
 
-describe("booking tools are not built yet", () => {
-  it("get_slots / book_slot return 501, never a fake slot", async () => {
-    expect((await handleTool("get_slots", post("/x", {}), deps)).status).toBe(501);
-    expect((await handleTool("book_slot", post("/x", {}), deps)).status).toBe(501);
-  });
-});
-
 describe("vaani webhook", () => {
   const body = JSON.stringify({ id: "evt_42", type: "call.completed", created: 1714003200, data: { phone: "+91 98••••••10" } });
   const sig = "sha256=" + createHmac("sha256", WHK).update(body).digest("hex");
