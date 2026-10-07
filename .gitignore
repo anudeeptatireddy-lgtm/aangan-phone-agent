@@ -26,6 +26,7 @@ pricing.md
 .supabase/
 supabase/.temp/
 *.local
+env.local*.txt
 *.log
 *.sqlite
 *.db
