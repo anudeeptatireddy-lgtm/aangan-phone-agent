@@ -49,11 +49,12 @@ that slipped through. 7. Outputs: Telegram note (reassign to next designer + ale
 working minutes), HubSpot deal, caller confirmation email, one call-log row feeding the dashboard.
 
 ## Fit rules
-`docs/qualified.md` (Nikhil's rubric) is the authority. The 8 rules inferred from transcripts are in the brief and
-reconciled in `docs/session-0-plan.md` §2. **No rule is coded until the owner/Nikhil resolve the listed differences.**
-Rules live in versioned config (`rule_versions` table, validated by a typed zod schema) so approved changes need no
-code change. Rule thresholds/budget floors are config, never prompt text. The engine takes `callDate` as input (never
-reads the clock) so tests are reproducible.
+`docs/qualified.md` is the authority; the reconciliation and Nikhil/owner answers are in `docs/decisions-v1.md` (rule_versions v1,
+owner-approved 2026-10-07, **Nikhil production sign-off pending**). The engine (`src/core/rules/engine.ts`) is deterministic and pure:
+inputs are structured fields + an explicit `callDate`; thresholds come from the typed config (`config.v1.ts`, later the `rule_versions`
+table). Output: `result` (fit / not_fit / unclear), `reason_codes`, `missing_fields`, `next_action`, `script_keys`, `flags`, `rule_version`.
+Budget figures and thresholds are config only: never in a prompt, script, log or tool response. Precedence: not_fit > unclear > fit.
+Working hours: Mon–Fri 10:00–19:00 IST (Saturday consults bookable if a calendar is free).
 
 ## Conventions
 - Tests first for logic (Vitest). Rules engine: unit tests over all 40 transcripts in `docs/enquiries/`.
@@ -71,9 +72,11 @@ All 40 transcripts' fixtures pass in the rules engine (T01–T20 expected classe
 passes the 20 phone transcripts + 10 hard cases, and a run FAILS if the agent ever says a price-related number.
 
 ## Session plan
-See `docs/session-0-plan.md` §5. Status:
-- Session 0: done (awaiting owner decisions on the rule conflicts, schema, session order).
-- Session 2 (Vaani agent + tools), **local, partial**: tool endpoints + deterministic routing/escalation/hours + Vaani webhook
-  verification + `VoicePlatform` seam + agent prompt draft + local simulator are built and tested. Live-call wiring is BLOCKED on
-  undocumented Vaani features — see `docs/vaani-findings.md`. `check_fit` is a fail-safe stub (always `unclear`).
-- Local-first: run with `pnpm dev`; test with `pnpm test`, `pnpm simulate`. Push only to a private remote the owner creates.
+See `docs/session-0-plan.md` §5 and `docs/decisions-v1.md`. Status:
+- Session 0: done. Decisions v1 recorded.
+- Rules engine (pulled forward): **done** — config v1, engine, scripts (EN/HI/MR), 40-transcript fixtures (`docs/enquiries/`, `tests/fixtures/`).
+- Session 2 (Vaani agent + tools), local, partial: tools (`lookup_caller`, `check_fit` real engine, `request_human`), routing, escalation
+  (design lead / front desk / callback fallback), Vaani webhook verification, agent prompt v1, simulator. Live-call wiring BLOCKED on
+  undocumented Vaani features (`docs/vaani-findings.md`). `get_slots` / `book_slot` return 501 until Session 3.
+- Next: Session 1 (foundation + schema v2, needs a Supabase project) or Session 3 (booking); Vaani docs needed for live calls.
+- Local-first: `pnpm dev`, `pnpm test`, `pnpm simulate`. Push only to a private remote the owner creates.

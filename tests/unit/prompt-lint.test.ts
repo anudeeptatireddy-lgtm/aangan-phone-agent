@@ -6,7 +6,7 @@ const prompt = readFileSync("agent/prompt.md", "utf8");
 
 describe("agent/prompt.md", () => {
   it("contains no rupee amounts, lakh/crore, or per-sq-ft rates", () => {
-    expect(prompt).not.toMatch(/₹|\brs\.?\s*\d|\binr\b|\blakhs?\b|\blacs?\b|\bcrores?\b|per\s*(sq|square)|\/\s*sq/i);
+    expect(prompt).not.toMatch(/₹|\brs\.?\s*\d|\binr\b|\blakhs?\b|\blacs?\b|\bcrores?\b|per\s*(sq|square)|\/\s*sq|लाख|करोड़|रुपये|रुपए|कोटी/i);
   });
   it("has the mandatory disclosure line (hard rule 3)", () => {
     expect(prompt).toMatch(/virtual assistant/i);

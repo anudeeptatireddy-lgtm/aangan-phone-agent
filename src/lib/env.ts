@@ -7,6 +7,9 @@ const Env = z.object({
   // Optional until the Vaani integration is verified against docs (hard rule 7).
   VAANI_API_KEY: z.string().optional(),
   VAANI_WEBHOOK_SECRET: z.string().optional(),
+  // Live-transfer targets (E.164). Complaints -> design lead, falling back to front desk; "I want a person" -> front desk.
+  FRONT_DESK_NUMBER: z.string().optional(),
+  DESIGN_LEAD_NUMBER: z.string().optional(),
 });
 export type Env = z.infer<typeof Env>;
 

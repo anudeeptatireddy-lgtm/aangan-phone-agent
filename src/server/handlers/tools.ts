@@ -6,6 +6,8 @@ import { lookupCaller } from "@/core/lookup";
 import { routeCall } from "@/core/routing/route-call";
 import { planEscalation } from "@/core/escalation";
 import { checkFit, CheckFitInput } from "@/core/rules/engine";
+import { RULES_V1 } from "@/core/rules/config.v1";
+import { Locale, renderScript, SCRIPTS, ScriptKey } from "@/core/scripts";
 import type { Deps } from "../deps";
 
 export type ToolName = "lookup_caller" | "check_fit" | "get_slots" | "book_slot" | "request_human";
@@ -25,7 +27,10 @@ const LookupBody = z.object({
   intent: z.enum(["new_enquiry", "existing_client", "complaint", "other", "unknown"]).optional(),
   first_utterance: z.string().optional(),
 });
+const LanguageBody = z.object({ language: z.enum(["en", "hi", "mr"]).default("en") });
 const RequestHumanBody = z.object({
+  transfer_failed: z.boolean().optional(),
+  language: z.enum(["en", "hi", "mr"]).default("en"),
   reason: z.enum(["complaint", "review", "human_requested"]),
   phone: z.string().optional(),
   call_id: z.string().optional(),
@@ -55,21 +60,31 @@ export async function handleTool(tool: ToolName, req: Request, deps: Deps): Prom
     case "check_fit": {
       const p = CheckFitInput.safeParse(body);
       if (!p.success) return json(400, { error: "invalid_body", issues: p.error.issues.map((i) => i.path.join(".")) });
-      const out = checkFit(p.data); // budget_inr is consumed here, never echoed
-      log("info", "check_fit", { result: out.result, reasons: out.reason_codes });
-      return json(200, out);
+      const lang = (LanguageBody.safeParse(body).data?.language ?? "en") as Locale;
+      const out = checkFit(p.data, now, RULES_V1); // budget_inr is consumed here, never echoed
+      const caller_messages = out.script_keys.map((key) => ({ key, text: renderScript(key, lang), status: SCRIPTS[key as ScriptKey][lang].status }));
+      log("info", "check_fit", { result: out.result, action: out.next_action, reasons: out.reason_codes, version: out.rule_version });
+      return json(200, { ...out, caller_messages });
     }
     case "request_human": {
       const p = RequestHumanBody.safeParse(body);
       if (!p.success) return json(400, { error: "invalid_body", issues: p.error.issues.map((i) => i.path.join(".")) });
-      const plan = planEscalation(p.data.reason, now, deps.hours);
+      // A live transfer needs a configured target; without one we must not pretend to transfer (fall back to a callback).
+      const wantsTransfer = planEscalation(p.data.reason, now, deps.hours).mode === "live_transfer";
+      const target = p.data.reason === "complaint" ? (deps.env.DESIGN_LEAD_NUMBER ? "design_lead" : deps.env.FRONT_DESK_NUMBER ? "front_desk" : null)
+        : deps.env.FRONT_DESK_NUMBER ? "front_desk" : null;
+      const transferFailed = !!p.data.transfer_failed || (wantsTransfer && !target);
+      const plan = planEscalation(p.data.reason, now, deps.hours, { transferFailed });
+      if (plan.transferTo && target) plan.transferTo = target;
       const e164 = p.data.phone ? normalizeE164(p.data.phone) : null;
       const caller = e164 ? await deps.repo.findCallerByPhone(e164) : undefined;
       const rec = deps.repo.addEscalation({ callerId: caller?.id, reason: plan.reason, mode: plan.mode,
         callbackDueAt: plan.callbackDueAt, alertNikhil: plan.alertNikhil, summary: p.data.summary, createdAt: now.toISOString() });
       log("warn", "request_human", { reason: plan.reason, mode: plan.mode, escalation_id: rec.id });
-      return json(200, { escalation_id: rec.id, mode: plan.mode, callback_due_at: plan.callbackDueAt,
-        caller_script: plan.callerScript, nikhil_alert_pending: plan.alertNikhil });
+      const lang = p.data.language as Locale;
+      return json(200, { escalation_id: rec.id, mode: plan.mode, transfer_target: plan.transferTo, callback_due_at: plan.callbackDueAt,
+        caller_script: plan.callerScript, caller_message: renderScript(plan.callerScript, lang, plan.callbackWhen),
+        caller_message_status: SCRIPTS[plan.callerScript][lang].status, nikhil_alert_pending: plan.alertNikhil });
     }
   }
 }

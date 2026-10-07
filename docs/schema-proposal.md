@@ -1,4 +1,7 @@
-# Supabase schema proposal (NOT applied — awaiting owner OK)
+# Supabase schema proposal v2 (NOT applied — Session 1)
+
+v2 amends v1 to meet the owner's four approval conditions (2026-10-07): phone numbers encrypted/hashed, RLS on every table,
+rule_version on every enquiry, per-call cost fields, no price fields. See "Approval conditions" at the end.
 
 Principles: Postgres, `timestamptz` everywhere, RLS enabled on every table with **no anon/authenticated policies** except
 dashboard reads via allowlisted users; all writes by server-side service role. Channel-neutral (`channel`). Full phone is
@@ -14,9 +17,9 @@ create type fit_result   as enum ('fit','not_fit','unclear');
 -- people ---------------------------------------------------------------
 create table callers (
   id uuid primary key default gen_random_uuid(),
-  phone_hash text not null unique,          -- HMAC-SHA256(e164, pepper); lookup key
-  phone_e164 text not null,                 -- service-role only; never logged
-  phone_masked text not null,               -- e.g. +91 98•••••12
+  phone_hash text not null unique,          -- HMAC-SHA256(e164, PHONE_HASH_PEPPER); lookup key
+  phone_enc bytea not null,                 -- AES-256-GCM (app-level, key PHONE_ENC_KEY, nonce prepended); NO plaintext phone column
+  phone_masked text not null,               -- e.g. +91 98••••••10
   name text, email text, language text,
   is_existing_client boolean not null default false,
   client_ref text,
@@ -25,7 +28,7 @@ create table callers (
   deleted_at timestamptz                    -- deletion-on-request (DPDP)
 );
 
-create table vip_referrers (id uuid primary key default gen_random_uuid(), name text not null, notes text, active boolean default true);
+create table vip_referrers (id uuid primary key default gen_random_uuid(), name text not null, notes text, active boolean default true);  -- seeded: Vikram Agarwal. Effect: flag in note + notify Nikhil; rules unchanged
 
 create table designers (
   id uuid primary key default gen_random_uuid(),
@@ -39,7 +42,7 @@ create table designers (
   active boolean not null default true,
   last_assigned_at timestamptz,              -- rotation rule input
   max_per_day int
-);
+);  -- roster comes from CSV import + admin edit; seed 3 test designers (one principal, one design lead) for build
 
 -- rules & wording (versioned, Nikhil-approved) --------------------------
 create table rule_versions (
@@ -55,6 +58,7 @@ create unique index one_active_rule_version on rule_versions ((status)) where st
 create table approved_texts (                -- price explanation, not_fit/unclear scripts, per language
   id uuid primary key default gen_random_uuid(),
   key text not null, locale text not null, body text not null,
+  status text not null check (status in ('approved','approved_pending_native_check','draft_pending_native_review','draft_not_approved')),
   version int not null, approved_by text, approved_at timestamptz,
   unique (key, locale, version)
 );
@@ -76,13 +80,13 @@ create table enquiries (
   decision_maker text, owners_attending boolean,
   tenure text check (tenure in ('owned','rented','unknown')), landlord_consent boolean, structural_work boolean,
   referrer text, source_heard text,
-  budget_volunteered boolean not null default false, budget_min_inr bigint, budget_max_inr bigint,  -- never spoken back
+  caller_budget_inr bigint,                  -- ONLY what the caller volunteered (upper figure); never spoken back; the system stores no price/quote of its own
   language text, price_asked boolean not null default false,
   flags jsonb not null default '{}',         -- vip, high_value, frustrated, lost_earlier_enquiry...
   extraction_model text, extraction_schema_version int,
   -- rule result
   fit fit_result, reason_codes text[] not null default '{}', missing_fields text[] not null default '{}',
-  rule_version_id uuid references rule_versions(id),
+  rule_version_id uuid not null references rule_versions(id),   -- stamped at creation with the active version; refreshed on every evaluation
   created_at timestamptz not null default now(), updated_at timestamptz not null default now()
 );
 
@@ -101,6 +105,8 @@ create table calls (
   outcome call_outcome, ended_reason text,
   disclosure_ok boolean,
   recording_path text,                       -- served only behind login
+  recording_expires_at timestamptz,          -- ended_at + 90 days (decision C); a daily job deletes the file
+  recording_deleted_at timestamptz,
   transcript jsonb,
   cost_voice_inr numeric(12,4), cost_ai_inr numeric(12,4), cost_total_inr numeric(12,4),
   created_at timestamptz not null default now()
@@ -112,7 +118,7 @@ create table rule_evaluations (              -- audit: live check_fit vs post-ca
   enquiry_id uuid references enquiries(id), call_id uuid references calls(id),
   phase text check (phase in ('live','post_call')),
   input jsonb not null, fit fit_result not null, reason_codes text[] not null,
-  rule_version_id uuid references rule_versions(id), call_date timestamptz not null,
+  rule_version_id uuid not null references rule_versions(id), call_date timestamptz not null,
   evaluated_at timestamptz not null default now()
 );
 
@@ -199,3 +205,27 @@ Notes
 - Dashboard metrics are SQL views over these tables (e.g. median `answer_latency_ms`, `% answered < 1 hour` from
   `calls`, `% booked on call` from `bookings.booked_on_call`, accept time from `handoffs`, escalation SLA from `escalations`).
 - Rule thresholds (incl. any budget-floor numbers supplied by Nikhil) live only in `rule_versions.config`.
+
+## Row-level security (every table)
+```sql
+do $$ declare t text; begin
+  foreach t in array array['callers','vip_referrers','designers','rule_versions','approved_texts','studio_hours','enquiries','calls',
+    'rule_evaluations','bookings','handoffs','escalations','usage_costs','audit_flags','call_reviews','crm_links','webhook_events','dashboard_users']
+  loop
+    execute format('alter table %I enable row level security', t);
+    execute format('alter table %I force row level security', t);
+    execute format('revoke all on %I from anon, authenticated', t);   -- deny by default; the service role (server only) bypasses RLS
+  end loop;
+end $$;
+-- Dashboard reads go through server routes that check dashboard_users; no browser-side table access.
+```
+A migration test (Session 1) asserts every table in `public` has RLS enabled and no anon/authenticated grants.
+
+## Approval conditions (owner, 2026-10-07)
+| Condition | Status in v2 |
+|---|---|
+| Phone numbers encrypted or hashed | Met: no plaintext column. `phone_hash` (keyed HMAC) for lookup, `phone_enc` (AES-256-GCM) for callbacks, `phone_masked` for display/logs. Needs `PHONE_ENC_KEY` + `PHONE_HASH_PEPPER` in env. |
+| RLS on every table | Met: block above + a test that fails if any table lacks it. |
+| rule_version stored on every enquiry | Met: `enquiries.rule_version_id NOT NULL` (and on every `rule_evaluations` row). |
+| Per-call cost fields | Met: `calls.cost_voice_inr / cost_ai_inr / cost_total_inr` (roll-ups) over the `usage_costs` ledger. |
+| No price fields anywhere | **Needs your confirmation.** The system stores no quote, rate or price of its own. Two places hold caller- or owner-supplied money figures: `enquiries.caller_budget_inr` (what the caller volunteered; the designer note and rule 6 need it) and the budget thresholds inside `rule_versions.config`. Keep both, or drop `caller_budget_inr` (then the designer note loses the volunteered budget and rule 6 can only run in memory during the call)? |

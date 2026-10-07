@@ -11,7 +11,7 @@ const NIGHT = new Date("2026-10-07T16:40:00Z"); // 22:10 IST
 
 let deps: Deps;
 const mkDeps = (now = NOW) =>
-  makeDeps({ env: { NODE_ENV: "test", PHONE_HASH_PEPPER: "pepper-0123456789ab", TOOL_SHARED_SECRET: TOOL_SECRET, VAANI_WEBHOOK_SECRET: WHK }, now: () => now });
+  makeDeps({ env: { NODE_ENV: "test", PHONE_HASH_PEPPER: "pepper-0123456789ab", TOOL_SHARED_SECRET: TOOL_SECRET, VAANI_WEBHOOK_SECRET: WHK, FRONT_DESK_NUMBER: "+919000000000", DESIGN_LEAD_NUMBER: "+919000000001" }, now: () => now });
 
 const post = (path: string, body: unknown, auth: string | null = `Bearer ${TOOL_SECRET}`) =>
   new Request(`http://localhost${path}`, { method: "POST", headers: { "content-type": "application/json", ...(auth ? { authorization: auth } : {}) }, body: JSON.stringify(body) });
@@ -50,12 +50,28 @@ describe("lookup_caller", () => {
   });
 });
 
-describe("check_fit (stub)", () => {
-  it("returns unclear and never fit", async () => {
-    const res = await handleTool("check_fit", post("/x", { location: "Kothrud", carpet_sqft: 1400, budget_inr: 150000 }), deps);
+describe("check_fit (real engine)", () => {
+  const T01 = { location: "Kothrud", project_type: "home", scope: "full_home", bhk: 3, carpet_sqft: 1400, deadline_date: "2027-03-31", decision_maker: "owner" };
+  it("T01 -> fit, proceed to booking, rule version recorded", async () => {
+    const j = await (await handleTool("check_fit", post("/x", T01), deps)).json();
+    expect(j).toMatchObject({ result: "fit", next_action: "proceed_to_booking", rule_version: "v1" });
+  });
+  it("T10 budget is consumed but never echoed; routes to human review", async () => {
+    const res = await handleTool("check_fit", post("/x", { location: "Kharadi", project_type: "home", scope: "partial_home", rooms_count: 2, bhk: 1, budget_inr: 150000 }), deps);
     const text = await res.text();
-    expect(JSON.parse(text).result).toBe("unclear");
-    expect(text).not.toMatch(/150000/);
+    expect(JSON.parse(text)).toMatchObject({ result: "unclear", next_action: "human_review" });
+    expect(text).not.toMatch(/150000|400000|lakh|₹/i);
+  });
+  it("timeline not_fit returns the approved decline text in the caller's language, with its review status", async () => {
+    const body = { ...T01, deadline_date: "2026-10-20", language: "hi" };
+    const j = await (await handleTool("check_fit", post("/x", body), deps)).json();
+    expect(j).toMatchObject({ result: "not_fit", next_action: "offer_later_start" });
+    expect(j.caller_messages[0]).toMatchObject({ key: "not_fit.timeline", status: "draft_pending_native_review" });
+    expect(j.caller_messages[0].text).toContain("हफ़्ते");
+  });
+  it("missing info asks for exactly that field", async () => {
+    const j = await (await handleTool("check_fit", post("/x", { ...T01, scope: undefined }), deps)).json();
+    expect(j).toMatchObject({ result: "unclear", next_action: "ask_caller", missing_fields: ["scope"] });
   });
 });
 
@@ -66,6 +82,29 @@ describe("request_human", () => {
     expect(j.mode).toBe("live_transfer");
     expect(deps.repo.escalations).toHaveLength(1);
     expect(JSON.stringify(deps.repo.escalations)).not.toContain("9000000009");
+  });
+  it("complaint in hours goes to the design lead; the approved script is returned", async () => {
+    const j = await (await handleTool("request_human", post("/x", { reason: "complaint" }), deps)).json();
+    expect(j.transfer_target).toBe("design_lead");
+    expect(j.caller_message).toBe("I'm sorry this has happened. I'm connecting you to a senior member of our team now.");
+  });
+  it("'I want a person' goes to the front desk, never to Nikhil", async () => {
+    const j = await (await handleTool("request_human", post("/x", { reason: "human_requested" }), deps)).json();
+    expect(j).toMatchObject({ mode: "live_transfer", transfer_target: "front_desk", nikhil_alert_pending: false });
+  });
+  it("transfer failed -> callback by 10am next working day + Nikhil alert (complaint)", async () => {
+    const j = await (await handleTool("request_human", post("/x", { reason: "complaint", transfer_failed: true }), deps)).json();
+    expect(j).toMatchObject({ mode: "callback_promised", nikhil_alert_pending: true, caller_script: "complaint_after_hours" });
+    expect(j.caller_message).toContain("by 10am on Thursday");
+  });
+  it("no transfer number configured -> never pretends to transfer", async () => {
+    const d = makeDeps({ env: { NODE_ENV: "test", PHONE_HASH_PEPPER: "pepper-0123456789ab", TOOL_SHARED_SECRET: TOOL_SECRET }, now: () => NOW });
+    expect((await (await handleTool("request_human", post("/x", { reason: "complaint" }), d)).json()).mode).toBe("callback_promised");
+  });
+  it("review: tells the caller to expect a call in working hours (today)", async () => {
+    const j = await (await handleTool("request_human", post("/x", { reason: "review" }), deps)).json();
+    expect(j).toMatchObject({ mode: "queued_review", caller_script: "expect_call" });
+    expect(j.caller_message).toContain("Monday to Friday, 10am to 7pm, today");
   });
   it("complaint after hours -> callback by 10am + Nikhil alert pending", async () => {
     const d = mkDeps(NIGHT);

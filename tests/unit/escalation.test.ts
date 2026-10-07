@@ -34,4 +34,19 @@ describe("planEscalation", () => {
     expect(a.mode).toBe("callback_promised");
     expect(a.alertNikhil).toBe(false);
   });
+  it("complaint live transfer goes to the design lead; 'human_requested' to the front desk", () => {
+    expect(planEscalation("complaint", ist("2026-10-07T12:00:00")).transferTo).toBe("design_lead");
+    expect(planEscalation("human_requested", ist("2026-10-07T12:00:00")).transferTo).toBe("front_desk");
+  });
+  it("transfer failure in hours falls back to the after-hours callback (and alerts Nikhil for complaints)", () => {
+    const p = planEscalation("complaint", ist("2026-10-07T12:00:00"), undefined, { transferFailed: true });
+    expect(p).toMatchObject({ mode: "callback_promised", alertNikhil: true, callerScript: "complaint_after_hours" });
+    expect(p.callbackDueAt).toBe(ist("2026-10-08T10:00:00").toISOString());
+    expect(p.callbackWhen).toEqual({ when: "day", day: "Thursday" });
+  });
+  it("before opening the callback is 'today' at 10:00", () => {
+    const p = planEscalation("complaint", ist("2026-10-07T08:00:00"));
+    expect(p.callbackDueAt).toBe(ist("2026-10-07T10:00:00").toISOString());
+    expect(p.callbackWhen).toEqual({ when: "today" });
+  });
 });

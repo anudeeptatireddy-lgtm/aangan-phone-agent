@@ -13,10 +13,32 @@ const show = (label: string, r: { status: number; body: unknown }) => console.lo
 
 async function scenario(name: string, run: () => Promise<void>) { console.log(`\n=== ${name}`); await run(); }
 
-await scenario("T01-style new enquiry (stub engine => human review, never auto-booked)", async () => {
+await scenario("T01 new enquiry: lookup -> check_fit => fit, proceed to booking (booking tools arrive next session)", async () => {
   show("lookup_caller", await call("/api/tools/lookup-caller", { phone: "9000000001", intent: "new_enquiry", first_utterance: "We have a 3BHK in Kothrud and want to redo the whole thing" }));
-  show("check_fit", await call("/api/tools/check-fit", { location: "Kothrud", scope: "full redesign", carpet_sqft: 1400, timeline: "by March", owners_attending: true }));
-  show("request_human(review)", await call("/api/tools/request-human", { reason: "review", phone: "9000000001", summary: "stub engine" }));
+  show("check_fit", await call("/api/tools/check-fit", { location: "Kothrud", project_type: "home", scope: "full_home", bhk: 3, carpet_sqft: 1400, deadline_date: "2027-03-31", decision_maker: "owner" }));
+});
+
+await scenario("T07 timeline too short -> decline text + later start, then re-run with the new deadline", async () => {
+  const f = { location: "Kothrud", project_type: "home", scope: "partial_home", rooms_count: 2 };
+  show("check_fit (3 weeks)", await call("/api/tools/check-fit", { ...f, deadline_date: new Date(Date.now() + 21 * 86400e3).toISOString().slice(0, 10) }));
+  show("check_fit (caller accepts a later start)", await call("/api/tools/check-fit", { ...f, deadline_date: new Date(Date.now() + 90 * 86400e3).toISOString().slice(0, 10) }));
+});
+
+await scenario("T10 / hard case 8: tiny volunteered budget -> human review, budget never echoed", async () => {
+  show("check_fit", await call("/api/tools/check-fit", { location: "Kharadi", project_type: "home", scope: "partial_home", rooms_count: 2, bhk: 1, carpet_sqft: 550, budget_inr: 150000 }));
+  show("request_human(review)", await call("/api/tools/request-human", { reason: "review", summary: "budget below scope" }));
+});
+
+await scenario("Hard case 7: Talegaon (edge) -> human review", async () => {
+  show("check_fit", await call("/api/tools/check-fit", { location: "Talegaon Dabhade, near Pune", project_type: "home", scope: "full_home", bhk: 3 }));
+});
+
+await scenario("Hard case 9: restaurant -> decline kindly (Hindi)", async () => {
+  show("check_fit", await call("/api/tools/check-fit", { location: "Koregaon Park", project_type: "restaurant", language: "hi" }));
+});
+
+await scenario("Hard case 10: 'Is this a robot? I want a person.'", async () => {
+  show("request_human(human_requested)", await call("/api/tools/request-human", { reason: "human_requested" }));
 });
 
 await scenario("T09-style angry existing client (unknown number, keyword guard)", async () => {

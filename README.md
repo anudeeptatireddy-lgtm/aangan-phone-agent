@@ -11,4 +11,4 @@ pnpm dev                     # http://localhost:3000
 pnpm simulate                # drives the real tool endpoints like the voice agent would (second terminal)
 pnpm test && pnpm typecheck
 ```
-State is in-memory until the Supabase schema is approved. `check_fit` is a fail-safe stub that always returns `unclear`.
+State is in-memory until Supabase (Session 1). `check_fit` runs the real deterministic rules engine (rule_versions v1; see `docs/decisions-v1.md`).

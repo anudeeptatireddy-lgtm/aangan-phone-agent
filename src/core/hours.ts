@@ -40,3 +40,12 @@ export function nextOpening(d: Date, cfg: HoursConfig = DEFAULT_HOURS): Date {
   }
   throw new Error("No working day found in the next year; check hours config");
 }
+
+/** IST calendar date (YYYY-MM-DD) of an instant. */
+export function istDate(d: Date): string {
+  return ymd(istParts(d));
+}
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
+export function istWeekdayName(d: Date): (typeof WEEKDAYS)[number] {
+  return WEEKDAYS[istParts(d).wd]!;
+}
