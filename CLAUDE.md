@@ -79,5 +79,6 @@ See `docs/session-0-plan.md` §5 and `docs/decisions-v1.md`. Status:
   (design lead / front desk / callback fallback), Vaani webhook verification, agent prompt v1, simulator. Live-call wiring BLOCKED on
   undocumented Vaani features (`docs/vaani-findings.md`). `get_slots` / `book_slot` return 501 until Session 3.
 - Round 2 (2026-10-07): festival_dates + `resolve_date`, failed-transfer SLA paths, approved "I want a person" wording. Provenance is recorded as "approved by project owner".
-- Next: Session 1 (foundation + schema v2), then Session 3 (booking); Vaani docs needed for live calls.
+- Session 1 (foundation + schema v2): **done locally** — migration + generated seed + CI + phone encryption, tested on PGlite (`tests/db/`). Not yet applied to Supabase (no project yet).
+- Next: Session 3 (booking: designers/bookings tables, Google Calendar, rotation); Vaani docs needed for live calls.
 - Local-first: `pnpm dev`, `pnpm test`, `pnpm simulate`. Push only to a private remote the owner creates.
