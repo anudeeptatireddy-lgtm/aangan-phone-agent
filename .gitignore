@@ -1,13 +1,23 @@
+# dependencies / build
 node_modules/
 .next/
+*.tsbuildinfo
+next-env.d.ts
+.vercel/
+
+# secrets: never commit. Only .env.example is tracked.
 .env
 .env.*
 !.env.example
-.vercel/
+
+# local Supabase CLI state (the stack, branches, temp files, local env/keys)
+supabase/.temp/
+supabase/.branches/
+supabase/.env
+supabase/.env.*
+supabase/functions/.env
+supabase/volumes/
+
 # HARD RULE 1: pricing.md must never enter this repo, any prompt, or any context.
 pricing.md
 **/pricing.md
-.next/
-node_modules/
-*.tsbuildinfo
-next-env.d.ts
