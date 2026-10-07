@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { log } from "@/lib/log";
-import { hashPhone } from "@/lib/phone";
+import { hashPhone, normalizeE164 } from "@/lib/phone";
 import type { CalStatus } from "@/core/calcom/types";
 import type { Deps } from "../deps";
 
@@ -38,10 +38,12 @@ export async function handleCalcomWebhook(req: Request, deps: Deps): Promise<Res
   const status = TRIGGERS[trigger] ?? STATUS[String(p.status ?? "").toUpperCase()] ?? "pending";
   const a = p.attendees?.[0];
   const created = body.createdAt ? new Date(body.createdAt) : deps.now();
+  // Normalised to E.164 before hashing (the call side does the same), or "98765 43210" and "+919876543210" would never match.
+  const phone = a?.phoneNumber ? normalizeE164(a.phoneNumber) : null;
   await deps.calStore.upsert({
     uid: p.uid, eventTypeId: typeof p.eventTypeId === "number" ? p.eventTypeId : null, title: p.title ?? null, status, startsAt: start, endsAt: end,
     attendeeEmail: a?.email ? a.email.toLowerCase() : null, attendeeName: a?.name ?? null,
-    attendeePhoneHash: a?.phoneNumber && /^\+\d{8,15}$/.test(a.phoneNumber) ? hashPhone(a.phoneNumber, deps.env.PHONE_HASH_PEPPER) : null,
+    attendeePhoneHash: phone ? hashPhone(phone, deps.env.PHONE_HASH_PEPPER) : null,
     createdAt: Number.isNaN(created.getTime()) ? deps.now() : created,
   });
   log("info", "calcom_webhook", { trigger, uid: p.uid, status });
@@ -52,6 +54,10 @@ export async function handleCalcomWebhook(req: Request, deps: Deps): Promise<Res
       await deps.postcall.enqueue("design_lead_alert", { kind: status === "cancelled" ? "booking_cancelled" : "booking_rescheduled", vendorCallId: existing.claimedByCall, startsAt: start.toISOString() },
         `design_lead_alert:${status}:${p.uid}`);
     }
+  }
+  if (status === "accepted") {
+    // The booking may have arrived after its call was already processed: try to match it now. The booking is stored, so a failure here must not make Cal.com retry.
+    try { await deps.router.routePending(); } catch (err) { log("error", "calcom_webhook: routing failed; the tick will retry", { uid: p.uid, error: String(err).slice(0, 200) }); }
   }
   return json(200, { ok: true });
 }

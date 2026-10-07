@@ -18,15 +18,16 @@ async function step<T>(name: string, f: () => Promise<T>): Promise<T | { error: 
   }
 }
 
-/** The scheduled tick (Vercel Cron sends `Authorization: Bearer $CRON_SECRET`): timeouts, unsent notes, outbox, alerts. Each step is isolated. */
+/** The scheduled tick (Vercel Cron sends `Authorization: Bearer $CRON_SECRET`): timeouts, unsent notes, call-to-booking routing, outbox, alerts. Each step is isolated. */
 export async function handleTick(req: Request, deps: Deps): Promise<Response> {
   const secret = deps.env.CRON_SECRET;
   if (!secret) return json(503, { error: "cron_secret_not_configured" });
   if (!bearerMatches(req, secret)) return json(401, { error: "unauthorized" });
   const sweep = await step("sweep", () => deps.handoff.sweep());
   const retry = await step("retry", () => deps.handoff.retryPending());
+  const routing = await step("routing", () => deps.router.routePending()); // before the outbox: a match queues the deal, email and note update
   const outbox = await step("outbox", () => deps.outbox.run());
   const alerts = await step("alerts", () => deps.alerts.drain());
-  const ok = ![sweep, retry, outbox, alerts].some((r) => "error" in r);
-  return json(200, { ok, sweep, retry, outbox, alerts });
+  const ok = ![sweep, retry, routing, outbox, alerts].some((r) => "error" in r);
+  return json(200, { ok, sweep, retry, outbox, alerts, routing });
 }

@@ -17,6 +17,7 @@ import type { DashboardSource } from "@/core/dashboard/source";
 import { InMemoryDashboardSource } from "./dashboard-source";
 import type { CalBookingStore } from "@/core/calcom/types";
 import { InMemoryCalBookingStore } from "./calcom-store";
+import { CallRouter, toEnquiryRecord } from "@/core/calcom/router";
 import { OutboxRunner } from "@/core/outbox/runner";
 import { BookingService } from "@/core/booking/service";
 import { DEFAULT_BOOKING_CONFIG, BookingConfig, Designer } from "@/core/booking/types";
@@ -60,6 +61,7 @@ export interface Deps {
   outbox: OutboxRunner;
   dashboard: DashboardSource;
   calStore: CalBookingStore;
+  router: CallRouter;
   booking: BookingService;
   // Session 4: post-call pipeline
   postcall: InMemoryPostCallRepo;
@@ -102,11 +104,19 @@ export function makeDeps(o: { env?: Record<string, string | undefined>; now?: ()
   else if (env.GEMINI_API_KEY) extractor = new GeminiExtractor({ apiKey: env.GEMINI_API_KEY, paidTierConfirmed: true });
   else if (env.NODE_ENV !== "production") extractor = fakeExtractor = new FakeExtractor();
   const enquiries = new InMemoryEnquiryStore();
-  const handoff = new HandoffService({ repo: bookingRepo, calendar, notifier, now, hours, config: o.bookingConfig ?? DEFAULT_BOOKING_CONFIG,
-    loadEnquiry: async (id) => enquiries.get(id) ?? null,
-    ownerChatId: env.OWNER_TELEGRAM_CHAT_ID ? Number(env.OWNER_TELEGRAM_CHAT_ID) : null, nikhilChatId: env.NIKHIL_TELEGRAM_CHAT_ID ? Number(env.NIKHIL_TELEGRAM_CHAT_ID) : null });
   const postcall = new InMemoryPostCallRepo(env.PHONE_HASH_PEPPER);
-  const pipeline = extractor ? new PostCallPipeline({ repo: postcall, bookings: bookingRepo, extractor, now, hours, designerNames: o.designerNames }) : undefined;
+  const handoff = new HandoffService({ repo: bookingRepo, calendar, notifier, now, hours, config: o.bookingConfig ?? DEFAULT_BOOKING_CONFIG,
+    // Enquiries made live are in `enquiries`; those from post-call processing (prompt-only calls) are in the post-call repo. Reassignment needs both.
+    loadEnquiry: async (id) => {
+      const live = enquiries.get(id);
+      if (live) return live;
+      const row = await postcall.getEnquiry(id);
+      return row ? toEnquiryRecord(row, row.callerId ? await postcall.callerContact(row.callerId) : null, now()) : null;
+    },
+    ownerChatId: env.OWNER_TELEGRAM_CHAT_ID ? Number(env.OWNER_TELEGRAM_CHAT_ID) : null, nikhilChatId: env.NIKHIL_TELEGRAM_CHAT_ID ? Number(env.NIKHIL_TELEGRAM_CHAT_ID) : null });
+  const calStore = new InMemoryCalBookingStore();
+  const router = new CallRouter({ repo: postcall, cal: calStore, booking, bookings: bookingRepo, pepper: env.PHONE_HASH_PEPPER, now, hours });
+  const pipeline = extractor ? new PostCallPipeline({ repo: postcall, bookings: bookingRepo, extractor, now, hours, designerNames: o.designerNames, router }) : undefined;
   // CRM and email: real adapters only when configured; fakes outside production; in production without config every attempt fails (and is retried / alerted).
   let crm: CrmPort, fakeCrm: FakeCrm | undefined;
   if (env.HUBSPOT_ACCESS_TOKEN && env.HUBSPOT_PIPELINE_ID && env.HUBSPOT_DEAL_STAGE_ID) crm = new HubSpotCrm({ token: env.HUBSPOT_ACCESS_TOKEN, pipelineId: env.HUBSPOT_PIPELINE_ID, dealStageId: env.HUBSPOT_DEAL_STAGE_ID });
@@ -117,10 +127,10 @@ export function makeDeps(o: { env?: Record<string, string | undefined>; now?: ()
   else if (env.NODE_ENV !== "production") email = fakeEmail = new FakeEmail();
   else email = { send: unconfigured("Resend (RESEND_API_KEY / RESEND_FROM)") };
   const outbox = new OutboxRunner({ repo: postcall, bookings: bookingRepo, notifier, crm, email, now });
-  const alerts = new AlertDrainer({ repo: postcall, notifier,
+  const alerts = new AlertDrainer({ repo: postcall, notifier, designLeadChat: async () => (await bookingRepo.listActiveDesigners()).find((x) => x.isDesignLead && x.telegramChatId != null)?.telegramChatId ?? null,
     ownerChatId: env.OWNER_TELEGRAM_CHAT_ID ? Number(env.OWNER_TELEGRAM_CHAT_ID) : undefined, nikhilChatId: env.NIKHIL_TELEGRAM_CHAT_ID ? Number(env.NIKHIL_TELEGRAM_CHAT_ID) : undefined });
   return { env, repo: new InMemoryRepo(env.PHONE_HASH_PEPPER), now, hours, designerNames: o.designerNames ?? [],
-    enquiries, bookingRepo, calendar, fakeCalendar, notifier, fakeNotifier, handoff, crm, email, fakeCrm, fakeEmail, outbox, dashboard: new InMemoryDashboardSource(postcall, bookingRepo), calStore: new InMemoryCalBookingStore(), booking, postcall, extractor, fakeExtractor, pipeline, alerts };
+    enquiries, bookingRepo, calendar, fakeCalendar, notifier, fakeNotifier, handoff, crm, email, fakeCrm, fakeEmail, outbox, dashboard: new InMemoryDashboardSource(postcall, bookingRepo), calStore, router, booking, postcall, extractor, fakeExtractor, pipeline, alerts };
 }
 
 // Process-wide singleton for the Next dev server (state is in-memory until Supabase lands).

@@ -31,6 +31,15 @@ describe("BookingService.recordExternalBooking (a booking made by the voice plat
     expect(h).toMatchObject({ status: "sent", attemptNo: 1 });
     expect(h.dueAt.getTime()).toBeGreaterThan(t.clock.t.getTime());
   });
+  it("two simultaneous attempts for the same Cal.com booking make ONE booking (the second must not fall through to another designer)", async () => {
+    const t = mk();
+    const [x, y] = await Promise.all([book(t, { uid: "race-1" }), book(t, { uid: "race-1" })]);
+    if (!x.ok || !y.ok) throw new Error(JSON.stringify([x, y]));
+    expect(x.bookingId).toBe(y.bookingId);
+    expect(x.designerId).toBe(y.designerId);
+    expect(t.notifier.handoffs).toHaveLength(1);
+    expect((await t.repo.handoffsForBooking(x.bookingId))).toHaveLength(1);
+  });
   it("never touches a calendar (the Google adapter is parked)", async () => {
     const t = mk();
     await book(t);

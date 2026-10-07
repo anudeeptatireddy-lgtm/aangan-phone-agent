@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { createHmac } from "node:crypto";
 import { makeDeps, Deps } from "@/server/deps";
+import { hashPhone } from "@/lib/phone";
 import { handleCalcomWebhook } from "@/server/handlers/calcom-webhook";
 
 const SECRET = "cal-signing-secret-0123456789";
@@ -62,5 +63,50 @@ describe("POST /api/calcom/webhook", () => {
     expect(await d.calStore.get("x")).toBeNull();
     const raw = "{not json";
     expect((await send(null, { raw, sig: createHmac("sha256", SECRET).update(raw).digest("hex") })).status).toBe(400);
+  });
+
+  describe("routing is also triggered from this side", () => {
+    const seedCall = async (id = "call-w") => {
+      const caller = await d.postcall.upsertCaller({ phone: "+919876543210", email: "priya@example.com" });
+      const e = await d.postcall.upsertEnquiry({ id: `enq-${id}`, callerId: caller.id, fit: "fit", reasonCodes: [], flags: [], ruleVersion: "v1",
+        input: { location: "Kothrud", project_type: "home", scope: "full_home", bhk: 3, carpet_sqft: 1400, decision_maker: "owner" } as never });
+      await d.postcall.upsertCall(id, { callerId: caller.id, enquiryId: e.id, rangAt: new Date("2026-10-07T05:00:00Z"), endedAt: new Date("2026-10-07T05:06:00Z"), postCallStatus: "processed", processedAt: NOW });
+      await d.postcall.enqueue("call_routing", { vendorCallId: id, enquiryId: e.id, claimedBooking: true }, `call_routing:${id}`);
+    };
+    it("a booking that arrives after the call was processed is matched at once", async () => {
+      await seedCall();
+      expect((await send(created())).status).toBe(200); // createdAt 05:03, attendee phone +919876543210
+      expect((await d.calStore.get("bk-1"))!.claimedByCall).toBe("call-w");
+      expect((await d.postcall.getCall("call-w"))!.outcome).toBe("booked");
+    });
+    it("phone numbers are normalised to E.164 before hashing: '98765 43210' meets +919876543210", async () => {
+      await seedCall();
+      await send(created({ attendees: [{ email: "someone@else.com", name: "X", phoneNumber: "98765 43210" }] }));
+      const b = (await d.calStore.get("bk-1"))!;
+      expect(b.attendeePhoneHash).toBe(hashPhone("+919876543210", "pepper-0123456789ab"));
+      expect(b.claimedByCall).toBe("call-w");
+    });
+    it("the matched booking's handoff can be reassigned after 30 working minutes (the enquiry comes from post-call storage)", async () => {
+      await seedCall();
+      await send(created());
+      const bookingId = (await d.bookingRepo.findByIdempotencyKey("cal:bk-1"))!.id;
+      const [h] = await d.bookingRepo.handoffsForBooking(bookingId);
+      const later = new Date(h!.dueAt.getTime() + 60_000);
+      (d.handoff as unknown as { d: { now: () => Date } }).d.now = () => later;
+      expect((await d.handoff.sweep()).timedOut).toBe(1);
+      const all = await d.bookingRepo.handoffsForBooking(bookingId);
+      expect(all).toHaveLength(2);
+      expect(all[1]!.designerId).not.toBe(all[0]!.designerId);
+    });
+    it("a router failure never fails the webhook (Cal.com would retry and the booking is already stored)", async () => {
+      d.router.routePending = async () => { throw new Error("db down"); };
+      expect((await send(created())).status).toBe(200);
+      expect(await d.calStore.get("bk-1")).not.toBeNull();
+    });
+    it("a cancellation does not trigger routing", async () => {
+      let n = 0; d.router.routePending = async () => { n++; return { booked: 0, waiting: 0, flagged: 0, closed: 0, orphans: 0, errors: 0 }; };
+      await send({ ...created(), triggerEvent: "BOOKING_CANCELLED", payload: { ...created().payload, status: "CANCELLED" } });
+      expect(n).toBe(0);
+    });
   });
 });

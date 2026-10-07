@@ -89,9 +89,16 @@ See `docs/session-0-plan.md` §5 and `docs/decisions-v1.md`. Status:
   verified against Google's raw docs, `docs/gemini-findings.md`), rules re-run + live-vs-post-call audit, enquiry/call persistence (`PgPostCallRepo`, migration 0002), designer note,
   per-call AI cost, outbox + alert drain. Vaani payload mapping is blocked (undocumented); the webhook stores/acknowledges/alerts instead of guessing.
 - Session 5 (handoff + CRM + email): **done against fakes and mocked HTTP**: `HandoffService` (Accept / Can't take it, 30-working-minute timeout sweep, reassignment that never returns to a designer who had it and honours a principal request, design-lead then owner/Nikhil alerts when nobody is free), real `TelegramNotifier` + `/api/telegram/webhook` (secret-token header, update_id dedupe, always answers the press), `HubSpotCrm` (contact upsert by email + deal, association type 3, never an amount; fails closed without pipeline/stage ids), `ResendEmail` (Idempotency-Key = outbox key; English-only, no prices), `OutboxRunner` (hubspot_deal, confirmation_email, designer_note_update; 5th failure alerts the owner), `/api/cron/tick` (Bearer CRON_SECRET) + `vercel.json` cron. Migration 0003 (`bookings.wants_principal`, unique `crm_links(enquiry_id)`). Nothing here has talked to the real Telegram/HubSpot/Resend yet: that needs the owner's tokens and ids (see docs/vendor-findings-s5.md).
+- Call-to-booking router (2026-10-07): **done against in-memory stores**: pure matcher + `CallRouter` (`src/core/calcom/`), triggered from post-call, the Cal.com webhook and the tick; flags go to the design lead only. Live use needs the vaanivoice webhook wired to the pipeline in prompt_only mode: see `docs/next-session.md`.
 - Next: Session 6 (Google Calendar real adapter, dashboard) and Session 7 (replay harness); Vaani live calls still blocked on docs and a `vv_live_` key.
-- Runs locally on the owner's Mac (moved from the cloud session on 2026-10-07 via a git bundle). The remote is GitHub, private repo `anudeeptatireddy-lgtm/aangan-phone-agent`. **Commit and push at the end of every session.** Commands: `npm install`, `npm test` (expect 778 passing, 12 skipped), `pnpm dev`, `pnpm simulate`. Keep the repo private.
+- Runs locally on the owner's Mac (moved from the cloud session on 2026-10-07 via a git bundle). The remote is GitHub, private repo `anudeeptatireddy-lgtm/aangan-phone-agent`. **Commit and push at the end of every session.** Package manager: **pnpm** (always; `pnpm install`, `pnpm test` (expect 778+ passing, 12 skipped), `pnpm dev`, `pnpm simulate`; never npm, never commit package-lock.json). Keep the repo private.
 
 ## Vaani: two products (2026-10-07)
 The owner's dashboard is **vaanivoice.ai** (key `vaani_…` works: `GET https://api.vaanivoice.ai/api/agents` = 200). `docs/vaani-findings.md` covers the OTHER site (vaanilabs.in).
 See `docs/vaanivoice-findings.md`. The dashboard test agent (71488786-49d9-4e9f-bfe4-6434cd697c7e) is prompt-only with no tools: a voice/language trial, not the production agent.
+
+## Working with the advisor
+The founders-office advisor (`.claude/agents/founders-office-advisor.md`) is the first stop for open questions.
+- Before asking the owner anything, ask the advisor.
+- Record every decision (advisor's or owner's) in `docs/decisions.md`, dated.
+- Bring the owner only OWNER-ONLY items (things only they or Nikhil can decide or supply), batched into one message, never one at a time.

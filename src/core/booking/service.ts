@@ -202,7 +202,12 @@ export class BookingService {
     const free = eligible.filter((x) => this.isFree(x, i.start, busy, busy));
     for (const x of pickInOrder(free)) {
       const r = await this.d.repo.createHold({ enquiryId: e.id, designerId: x.id, startsAt: i.start, endsAt: i.end, idempotencyKey: key, callerEmail: i.callerEmail ?? e.callerEmail ?? null, mode: MODE });
-      if (!r.ok) continue; // lost a race for this designer: the database constraint decided; try the next
+      if (!r.ok) {
+        // The same Cal.com booking arriving twice at once (call-side and webhook-side routing): the other attempt owns it. Never fall through to a second designer.
+        const mine = await this.d.repo.findByIdempotencyKey(key);
+        if (mine) return { ok: true, bookingId: mine.id, designerId: mine.designerId, handoffSent: true };
+        continue; // lost a race for this designer: the database constraint decided; try the next
+      }
       await this.d.repo.confirm(r.booking.id, i.externalId);
       const now = this.d.now();
       await this.d.repo.touchLastAssigned(x.id, now);

@@ -27,6 +27,8 @@ export interface PipelineDeps {
    * prompt_only: it did not; the booking is made by the voice platform (Cal.com) and we decide everything here, afterwards.
    */
   mode?: "live_tools" | "prompt_only";
+  /** prompt_only: tried as soon as processing finishes. A failure never fails the call: the queued `call_routing` item is retried by the tick. */
+  router?: { routeCall(vendorCallId: string): Promise<unknown> };
   now: () => Date;
   designerNames?: string[];
   rules?: RuleConfig;
@@ -207,8 +209,10 @@ export class PostCallPipeline {
     if (promptOnly) {
       if (escalated) return finish("escalated", enquiryId); // asked for a person: the details are saved for them; the front desk calls back
       // The booking (if any) lives in Cal.com and arrives by its own webhook: the router matches it and decides who is told what.
-      await repo.enqueue("call_routing", { vendorCallId: id, enquiryId }, `call_routing:${id}`);
-      return finish("review", enquiryId, { }); // provisional: the router sets the final outcome
+      await repo.enqueue("call_routing", { vendorCallId: id, enquiryId, claimedBooking: rec.signals?.claimedBooking === true }, `call_routing:${id}`);
+      const result = await finish("review", enquiryId, { }); // provisional: the router sets the final outcome
+      try { await this.d.router?.routeCall(id); } catch (err) { log("error", "post-call: routing attempt failed; the tick will retry", { vendor_call_id: id, error: String(err).slice(0, 200) }); }
+      return result;
     }
     if (saved.fit === "fit") await repo.enqueue("hubspot_deal", { enquiryId, vendorCallId: id, bookingId: booking?.id ?? null }, `hubspot_deal:${enquiryId}`);
     const email = booking?.callerEmail ?? mapping.callerEmail;

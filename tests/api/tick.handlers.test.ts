@@ -16,7 +16,7 @@ describe("GET /api/cron/tick", () => {
   it("runs every step and reports counts", async () => {
     const r = await handleTick(req(`Bearer ${CRON}`), mk());
     expect(r.status).toBe(200);
-    expect(await r.json()).toEqual({ ok: true, sweep: { timedOut: 0 }, retry: { sent: 0, failed: 0 }, outbox: { processed: 0, failed: 0 }, alerts: { sent: 0, failed: 0, skipped: 0 } });
+    expect(await r.json()).toEqual({ ok: true, sweep: { timedOut: 0 }, retry: { sent: 0, failed: 0 }, outbox: { processed: 0, failed: 0 }, alerts: { sent: 0, failed: 0, skipped: 0 }, routing: { booked: 0, waiting: 0, flagged: 0, closed: 0, orphans: 0, errors: 0 } });
   });
   it("one failing step does not stop the others", async () => {
     const d = mk();
@@ -37,5 +37,19 @@ describe("GET /api/cron/tick", () => {
     const body = await (await handleTick(req(`Bearer ${CRON}`), d2)).json();
     expect(body.sweep.timedOut).toBe(1);
     expect((await d.bookingRepo.handoffsForBooking(b.booking_id))).toHaveLength(2);
+  });
+  it("the routing step finishes a call whose booking arrived, and sweeps one that never got a booking", async () => {
+    const d = mk();
+    const caller = await d.postcall.upsertCaller({ phone: "+919000000021" });
+    const input = { location: "Kothrud", project_type: "home", scope: "full_home", bhk: 3, carpet_sqft: 1400, decision_maker: "owner" } as never;
+    for (const id of ["tick-a", "tick-b"]) {
+      const e = await d.postcall.upsertEnquiry({ id: `enq-${id}`, callerId: caller.id, input, fit: "fit", reasonCodes: [], flags: [], ruleVersion: "v1" });
+      await d.postcall.upsertCall(id, { callerId: caller.id, enquiryId: e.id, rangAt: new Date("2026-10-07T04:40:00Z"), endedAt: new Date("2026-10-07T04:44:00Z"), postCallStatus: "processed", processedAt: NOW });
+      await d.postcall.enqueue("call_routing", { vendorCallId: id, enquiryId: e.id, claimedBooking: true }, `call_routing:${id}`);
+    }
+    await d.calStore.upsert({ uid: "tb", eventTypeId: 1, title: null, status: "accepted", startsAt: new Date("2026-10-08T05:30:00Z"), endsAt: new Date("2026-10-08T06:30:00Z"), attendeeEmail: null, attendeeName: null, attendeePhoneHash: null, createdAt: new Date("2026-10-07T04:43:00Z") });
+    const body = await (await handleTick(req(`Bearer ${CRON}`), d)).json();
+    // two calls, ONE booking: the lone candidate is ambiguous between the two calls only if both claim; the first claims it, the second finds nothing and is swept (NOW is past end + 15 min)
+    expect(body.routing).toMatchObject({ booked: 1, flagged: 1, waiting: 0, errors: 0 });
   });
 });
