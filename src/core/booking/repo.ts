@@ -26,6 +26,8 @@ export interface BookingRepo {
   /** Frees the slot and releases the idempotency key. */
   cancel(bookingId: string): Promise<void>;
   getBooking(id: string): Promise<Booking | null>;
+  /** The live (held or confirmed) booking for an enquiry, if any. */
+  bookingForEnquiry(enquiryId: string): Promise<Booking | null>;
   findByIdempotencyKey(key: string): Promise<Booking | null>;
   touchLastAssigned(designerId: string, at: Date): Promise<void>;
   createHandoff(h: { bookingId: string; designerId: string; dueAt: Date }): Promise<HandoffRecord>;

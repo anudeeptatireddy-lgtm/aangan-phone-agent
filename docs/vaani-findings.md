@@ -36,6 +36,8 @@ is no telephony/phone scope.** Phone agents may be configured only in the dashbo
 | 15 | **Operational limits** | Default key limit 60 req/min; webhook delivery drained about once a minute | designer-note latency | "Concurrent-call limit, and can webhook delivery be real-time? (The ~1-minute drain eats into the 2-minute designer-note target.)" | Plan limits |
 
 ## 2. What is already built against what IS documented
+- Post-call pipeline (Session 4): `POST /api/calls/process` takes a vendor-neutral `CallRecordInput`. The Vaani webhook calls `mapVaaniCallCompleted` (`src/adapters/voice/vaani/call-record.ts`), which
+  returns `null` until item 6 above is answered; meanwhile the event is stored as `unmapped`, acknowledged, and the owner is alerted once. The mapper's checklist is `VAANI_CALL_COMPLETED_REQUIREMENTS`.
 - Signed-webhook verification and idempotency on the envelope `id` (`src/adapters/voice/vaani/webhook.ts`, tested).
 - A `VoicePlatform` interface so the live parts can be filled in (or swapped for Bolna) without touching core code; the Vaani transfer
   method throws `NotDocumentedError` rather than guessing.

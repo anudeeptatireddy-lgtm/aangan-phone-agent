@@ -108,3 +108,32 @@ engine called `fit` can be offered slots or booked (enforced in code, tested).
 6. If the Telegram send fails, **the booking stands** (the caller was promised it) and the handoff stays `pending` for a retry job (Session 5).
 7. If no designer is eligible, or the calendar is unreachable, the agent is told `request_human_review` rather than inventing a slot.
 8. The Telegram note carries **no phone or email**; it shows a budget only if the caller volunteered it.
+
+## Session 4 — post-call pipeline
+Built (tests first, 590 passing; the repository contract also runs on the real local Supabase): `src/core/postcall/*`, `src/adapters/llm/*`, `PgPostCallRepo`,
+migration `20261007000002_post_call.sql` (calls.summary/post_call_status/processed_at, enquiries.designer_note/rule_input, `outbox` table, audit kind `extraction_failed`).
+
+What happens after a call (`POST /api/calls/process`, vendor-neutral record):
+1. Store the call, transcript and recording expiry (**ended + 90 days**), caller link, after-hours flag.
+2. **Deterministic scans first (never depend on the model):** disclosure at the start (hard rule 3); any price-related number in the AGENT's lines, EN/HI/MR/Hinglish, spoken
+   numbers included (hard rule 1); each hit becomes an audit flag + an owner alert.
+3. **Gemini extraction** to a fixed JSON schema (`gemini-3.5-flash-lite`, paid tier only, `store:false`), retried once on transient errors, never on a rejected request. If it
+   still fails: status `extraction_failed`, flagged and alerted, scans already done.
+4. **Complaint slip check** (hard rule 4) from the caller's words + the model's intent; owner **and** Nikhil alerted; never turned into a lead.
+5. **Rules engine re-run** on the extracted fields (model extracts, code decides; deadlines turned into dates by code, festivals only from `festival_dates`). Compared with the
+   live evaluation; a difference raises `rule_disagreement`. **The live result stays authoritative** (it is what the caller was told); the post-call run is the audit.
+6. Enquiry upserted (continues the live one, or the one from a call dropped within 30 minutes; both calls linked), designer note drafted for booked calls (no phone/email), outcome derived,
+   AI cost logged per call, follow-ups queued in the **outbox** (HubSpot deal for `fit`, confirmation email for booked). Alerts are delivered by `POST /api/outbox/drain`.
+
+Assumptions I made (please confirm):
+- **Outcome rules:** booked > escalated > dropped > not_fit > review. A `fit` enquiry that was not booked is `review` (someone must call) and still gets a HubSpot deal (qualified, per the brief).
+- **Which result is stored on the enquiry:** the live one (post-call is audit only). If no live check happened (call ended early) the post-call result is used.
+- Only the CALLER's budget is recorded; a caller volunteering a budget is never a violation. The extraction prompt forbids money in the summary but the model is not trusted on that: the price scan only covers the AGENT.
+- The price scanner is **deliberately conservative**: it also flags "3x the cost" and "we don't quote per sq ft". Against the 40 real transcripts it flags exactly T10 (a floor in lakh) and T13 (a multiplier), and passes every approved script
+  in all three languages. It is a safety net; the weekly 10-call review remains the check for what regexes cannot see.
+- Model choice: pinned **`gemini-3.5-flash-lite`** ($0.30/$2.50 per 1M), matching the research plan's cost model. `gemini-3.1-flash-lite` is also Stable and cheaper ($0.25/$1.50). Owner to choose.
+- Cost: each call logs the ledger rows and `calls.cost_ai_inr` (about ₹0.24 on a typical call). Voice cost joins when Vaani usage data exists.
+
+Needs from the owner: a **paid-tier Gemini key** (`GEMINI_API_KEY` + `GEMINI_PAID_TIER_CONFIRMED=true`; the app refuses to start with a key but no confirmation), then run
+`pnpm tsx scripts/gemini-smoke.ts` once; **Telegram chat ids** for owner alerts and Nikhil (`OWNER_TELEGRAM_CHAT_ID`, `NIKHIL_TELEGRAM_CHAT_ID`); and from Vaani a real `call.completed`
+payload. Until then the Vaani webhook stores the event as `unmapped`, acknowledges it, and alerts the owner once that calls are not being post-processed (`docs/vaani-findings.md` item 6).

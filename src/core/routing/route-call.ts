@@ -14,7 +14,7 @@ export interface RouteDecision { route: Route; reason: string }
 
 // Signals that the caller is talking about a project they already have with Aangan, or complaining.
 // EN / Hinglish / Hindi / Marathi. Deliberately narrow: a frustrated PROSPECT (T16) must not match.
-const COMPLAINT_PATTERNS: RegExp[] = [
+export const COMPLAINT_PATTERNS: RegExp[] = [
   /\bmy (project|designer|site|contractor|execution)\b/i,
   /\b(complaint|complain)\b/i,
   /\b(mera|meri|mere)\s+(project|designer|site|kaam)\b/i,
@@ -24,7 +24,7 @@ const COMPLAINT_PATTERNS: RegExp[] = [
   /(मेरा|मेरे|मेरी)\s*(प्रोजेक्ट|डिज़ाइनर|डिजाइनर|साइट)/,
   /(माझा|माझे|माझी)\s*(प्रोजेक्ट|डिझायनर|साइट)/,
 ];
-const DESIGNER_WORDS = /\b(designer)\b|डिज़ाइनर|डिजाइनर|डिझायनर/i;
+export const DESIGNER_WORDS = /\b(designer)\b|डिज़ाइनर|डिजाइनर|डिझायनर/i;
 
 export function routeCall(i: RouteInput): RouteDecision {
   if (i.isExistingClient) return { route: "escalate_complaint", reason: "lookup_existing_client" };

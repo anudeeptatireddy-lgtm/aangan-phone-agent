@@ -85,5 +85,8 @@ See `docs/session-0-plan.md` §5 and `docs/decisions-v1.md`. Status:
   hold -> event -> confirm -> handoff, idempotency, double-booking guard (in-memory + Postgres exclusion constraint, one shared contract suite, also run on the
   local Supabase with real concurrent connections). Operational parameters I chose are listed in `docs/decisions-v1.md` (Session 3) for the owner to confirm.
   Swap the fakes for the real adapters once the owner supplies the test calendar and Telegram chat id.
-- Next: Session 4 (post-call pipeline: webhook ingest, Gemini extraction, enquiry persistence to Postgres, price/complaint scans); real Calendar/Telegram adapters; Vaani docs for live calls.
+- Session 4 (post-call pipeline): **done**: scans (price EN/HI/MR, disclosure, missed complaint), Gemini extraction adapter (`gemini-3.5-flash-lite`, paid tier only, `store:false`;
+  verified against Google's raw docs, `docs/gemini-findings.md`), rules re-run + live-vs-post-call audit, enquiry/call persistence (`PgPostCallRepo`, migration 0002), designer note,
+  per-call AI cost, outbox + alert drain. Vaani payload mapping is blocked (undocumented); the webhook stores/acknowledges/alerts instead of guessing.
+- Next: Session 5 (Telegram + HubSpot + Resend: real adapters, Accept/Can't-take-it, 30-working-minute reassign, outbox workers) needs the owner's test calendar, Telegram chat ids and HubSpot pipeline/stage ids; a paid Gemini key for the live smoke test; Vaani docs for live calls.
 - Local-first: `pnpm dev`, `pnpm test`, `pnpm simulate`. Push only to a private remote the owner creates.

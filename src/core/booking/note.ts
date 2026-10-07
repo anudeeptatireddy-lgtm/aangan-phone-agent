@@ -9,6 +9,8 @@ export interface NoteInput {
   mode: string;
   principalRequested: boolean;
   callSeconds?: number;
+  /** Neutral call summary (post-call, model-written; the extraction prompt forbids money amounts). */
+  summary?: string;
 }
 
 const clip = (s: string, n = 160) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
@@ -57,6 +59,7 @@ export function noteLines(i: Omit<NoteInput, "handoffId">): string[] {
   ];
   if (f.referrer) lines.push(`Referred by: ${clip(f.referrer, 80)}`);
   if (flags.length) lines.push(`Flags: ${flags.join(", ")}`);
+  if (i.summary) lines.push(`Summary: ${clip(i.summary, 400)}`);
   if (i.callSeconds !== undefined) lines.push(`Call: ${Math.floor(i.callSeconds / 60)} min ${i.callSeconds % 60} s`);
   return lines;
 }

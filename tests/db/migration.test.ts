@@ -3,7 +3,7 @@ import type { PGlite } from "@electric-sql/pglite";
 import { freshDb } from "./helpers";
 
 const TABLES = ["approved_texts", "audit_flags", "bookings", "call_reviews", "callers", "calls", "crm_links", "dashboard_users", "designers",
-  "enquiries", "escalations", "festival_dates", "handoffs", "rule_evaluations", "rule_versions", "studio_hours", "usage_costs", "vip_referrers", "webhook_events"];
+  "enquiries", "escalations", "festival_dates", "handoffs", "outbox", "rule_evaluations", "rule_versions", "studio_hours", "usage_costs", "vip_referrers", "webhook_events"];
 
 let db: PGlite;
 beforeAll(async () => { db = await freshDb({ seed: true }); }, 60_000);
@@ -66,6 +66,29 @@ describe("schema v2 meets the owner's approval conditions", () => {
     expect(bad).toEqual([]);
     const money = c.filter((r) => /_inr$|budget|amount|cost|fx_/i.test(r.column_name)).map((r) => `${r.table_name}.${r.column_name}`).sort();
     expect(money).toEqual(["calls.cost_ai_inr", "calls.cost_total_inr", "calls.cost_voice_inr", "enquiries.caller_budget_inr", "usage_costs.amount_inr", "usage_costs.fx_inr_per_usd", "usage_costs.unit_cost"]);
+  });
+});
+
+describe("post-call additions (migration 0002)", () => {
+  it("calls carry the post-call status, summary and processing time; enquiries carry the designer note and the exact rule input", async () => {
+    const c = await rows<{ column_name: string }>("select column_name from information_schema.columns where table_name='calls' and column_name in ('post_call_status','summary','processed_at')");
+    expect(c.map((r) => r.column_name).sort()).toEqual(["post_call_status", "processed_at", "summary"]);
+    const e = await rows<{ column_name: string }>("select column_name from information_schema.columns where table_name='enquiries' and column_name in ('designer_note','rule_input')");
+    expect(e.map((r) => r.column_name).sort()).toEqual(["designer_note", "rule_input"]);
+  });
+  it("audit flags accept 'extraction_failed' and still reject unknown kinds", async () => {
+    const callId = (await rows<{ id: string }>("insert into calls(vaani_call_id) values ('vc-flag') returning id"))[0]!.id;
+    await db.query("insert into audit_flags(call_id, kind) values ($1,'extraction_failed')", [callId]);
+    await expect(db.query("insert into audit_flags(call_id, kind) values ($1,'nonsense')", [callId])).rejects.toThrow(/check constraint/i);
+  });
+  it("post_call_status only takes the three known values", async () => {
+    await expect(db.query("insert into calls(vaani_call_id, post_call_status) values ('vc-bad','weird')")).rejects.toThrow(/check constraint/i);
+  });
+  it("the outbox is idempotent on dedupe_key and restricted to known kinds and statuses", async () => {
+    await db.query("insert into outbox(kind, dedupe_key) values ('owner_alert','a')");
+    await expect(db.query("insert into outbox(kind, dedupe_key) values ('owner_alert','a')")).rejects.toThrow(/unique|duplicate/i);
+    await expect(db.query("insert into outbox(kind, dedupe_key) values ('mystery','b')")).rejects.toThrow(/check constraint/i);
+    await expect(db.query("insert into outbox(kind, dedupe_key, status) values ('owner_alert','c','weird')")).rejects.toThrow(/check constraint/i);
   });
 });
 

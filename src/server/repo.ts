@@ -23,7 +23,7 @@ export class InMemoryRepo implements CallRepo {
   private callers = new Map<string, Caller>(); // by phoneHash
   private calls: CallRecord[] = [];
   escalations: EscalationRecord[] = [];
-  webhookEvents: { id: string; type: string; receivedAt: string }[] = [];
+  webhookEvents: { id: string; type: string; receivedAt: string; status?: string }[] = [];
 
   constructor(private pepper: string) {}
 
@@ -61,5 +61,6 @@ export class InMemoryRepo implements CallRepo {
     this.webhookEvents.push({ id, type, receivedAt });
     return false;
   }
+  setWebhookStatus(id: string, status: string) { const e = this.webhookEvents.find((x) => x.id === id); if (e) e.status = status; }
   reset() { this.callers.clear(); this.calls = []; this.escalations = []; this.webhookEvents = []; }
 }

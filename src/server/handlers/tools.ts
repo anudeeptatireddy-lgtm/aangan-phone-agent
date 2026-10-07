@@ -17,7 +17,7 @@ export type ToolName = "lookup_caller" | "check_fit" | "get_slots" | "book_slot"
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
-function authorized(req: Request, secret: string): boolean {
+export function authorized(req: Request, secret: string): boolean {
   const h = req.headers.get("authorization") ?? "";
   const given = Buffer.from(h.startsWith("Bearer ") ? h.slice(7) : "");
   const want = Buffer.from(secret);
@@ -28,6 +28,7 @@ const LookupBody = z.object({
   phone: z.string().default(""),
   intent: z.enum(["new_enquiry", "existing_client", "complaint", "other", "unknown"]).optional(),
   first_utterance: z.string().optional(),
+  call_id: z.string().optional(),   // the voice vendor's call id: lets the post-call pipeline find what the live tools did
 });
 const LanguageBody = z.object({ language: z.enum(["en", "hi", "mr"]).default("en") });
 const EnquiryExtras = z.object({
@@ -35,6 +36,7 @@ const EnquiryExtras = z.object({
   caller_name: z.string().max(120).optional(),
   caller_email: z.string().email().optional(),
   phone: z.string().optional(),
+  call_id: z.string().optional(),
 });
 const hhmm = z.string().regex(/^\d{2}:\d{2}$/);
 const ymd = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -74,6 +76,11 @@ export async function handleTool(tool: ToolName, req: Request, deps: Deps): Prom
       const result = await lookupCaller(deps.repo, p.data.phone, now);
       const decision = routeCall({ isExistingClient: result.is_existing_client, intent: p.data.intent,
         utterance: p.data.first_utterance, designerNames: deps.designerNames });
+      if (p.data.call_id) {
+        const e164 = normalizeE164(p.data.phone);
+        const caller = e164 ? await deps.postcall.upsertCaller({ phone: e164 }) : null;
+        await deps.postcall.upsertCall(p.data.call_id, caller ? { callerId: caller.id } : {});
+      }
       log("info", "lookup_caller", { phone: p.data.phone, route: decision.route, reason: decision.reason });
       return json(200, { ...result, recommended_route: decision.route, route_reason: decision.reason });
     }
@@ -93,6 +100,16 @@ export async function handleTool(tool: ToolName, req: Request, deps: Deps): Prom
       let enquiryId = extras.data.enquiry_id;
       if (enquiryId) { if (!deps.enquiries.update(enquiryId, fields)) return json(404, { error: "enquiry_not_found" }); }
       else enquiryId = deps.enquiries.create({ ...fields, language: LanguageBody.safeParse(body).data?.language, createdAt: now.toISOString() }).id;
+      if (extras.data.call_id) {
+        // Mirror into the persisted store (same enquiry id) and record the LIVE evaluation, so the post-call run can audit it.
+        const pc = await deps.postcall.getCall(extras.data.call_id);
+        let pcCaller = pc?.callerId ?? null;
+        if (!pcCaller && e164) pcCaller = (await deps.postcall.upsertCaller({ phone: e164 })).id;
+        await deps.postcall.upsertEnquiry({ id: enquiryId, callerId: pcCaller, input: parsedInput, fit: out.result, reasonCodes: out.reason_codes, missingFields: out.missing_fields,
+          nextAction: out.next_action, flags: out.flags, ruleVersion: out.rule_version, language: LanguageBody.safeParse(body).data?.language });
+        await deps.postcall.upsertCall(extras.data.call_id, { enquiryId, ...(pcCaller ? { callerId: pcCaller } : {}) });
+        await deps.postcall.recordEvaluation({ vendorCallId: extras.data.call_id, enquiryId, phase: "live", input: parsedInput, fit: out.result, reasonCodes: out.reason_codes, ruleVersion: out.rule_version, callDate: now });
+      }
       const caller_messages = out.script_keys.map((key) => ({ key, text: renderScript(key, lang), status: SCRIPTS[key as ScriptKey][lang].status }));
       log("info", "check_fit", { result: out.result, action: out.next_action, reasons: out.reason_codes, version: out.rule_version });
       return json(200, { ...out, caller_messages, enquiry_id: enquiryId });
@@ -159,6 +176,11 @@ export async function handleTool(tool: ToolName, req: Request, deps: Deps): Prom
         callbackDueAt: plan.callbackDueAt, alertNikhil: plan.alertNikhil, summary: p.data.summary, createdAt: now.toISOString(),
         slaMinutes: plan.slaMinutes, queue: plan.queue, queueEscalatesTo: plan.queueEscalatesTo,
         alertDesignLeadNow: plan.alertDesignLeadNow, alertNikhilIfUnackedMin: plan.alertNikhilIfUnackedMin });
+      if (p.data.call_id) {
+        await deps.postcall.upsertCall(p.data.call_id, {});
+        await deps.postcall.recordEscalation(p.data.call_id, { reason: plan.reason, mode: plan.mode, callbackDueAt: plan.callbackDueAt ? new Date(plan.callbackDueAt) : null,
+          slaMinutes: plan.slaMinutes ?? null, queue: plan.queue ?? null, queueEscalatesTo: plan.queueEscalatesTo ?? null });
+      }
       log("warn", "request_human", { reason: plan.reason, mode: plan.mode, escalation_id: rec.id });
       return json(200, { escalation_id: rec.id, mode: plan.mode, transfer_target: plan.transferTo, callback_due_at: plan.callbackDueAt,
         sla_minutes: plan.slaMinutes ?? null, alert_design_lead_now: plan.alertDesignLeadNow ?? false,

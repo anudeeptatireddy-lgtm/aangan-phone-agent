@@ -56,10 +56,10 @@ describe.skipIf(!ON)("local Supabase stack", () => {
     });
   });
 
-  it("all 19 tables exist, each with RLS enabled AND forced", async () => {
-    expect(tables).toHaveLength(19);
+  it("all 20 tables exist, each with RLS enabled AND forced", async () => {
+    expect(tables).toHaveLength(20);
     const r = await pg.query("select c.relname, c.relrowsecurity, c.relforcerowsecurity from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind='r'");
-    expect(r.rows).toHaveLength(19);
+    expect(r.rows).toHaveLength(20);
     for (const x of r.rows) { expect(x.relrowsecurity, x.relname).toBe(true); expect(x.relforcerowsecurity, x.relname).toBe(true); }
     expect((await pg.query("select 1 from pg_policies where schemaname='public'")).rowCount).toBe(0);
   });

@@ -75,6 +75,10 @@ export class PgBookingRepo implements BookingRepo {
   }
   async cancel(id: string) { await this.db.query("update bookings set status='cancelled', idempotency_key=null where id=$1", [id]); }
   async getBooking(id: string) { const { rows } = await this.db.query("select * from bookings where id=$1", [id]); return rows[0] ? bookingOf(rows[0]) : null; }
+  async bookingForEnquiry(enquiryId: string) {
+    const { rows } = await this.db.query("select * from bookings where enquiry_id=$1 and status in ('held','confirmed') order by starts_at limit 1", [enquiryId]);
+    return rows[0] ? bookingOf(rows[0]) : null;
+  }
   async findByIdempotencyKey(key: string) {
     const { rows } = await this.db.query("select * from bookings where idempotency_key=$1 and status in ('held','confirmed')", [key]);
     return rows[0] ? bookingOf(rows[0]) : null;

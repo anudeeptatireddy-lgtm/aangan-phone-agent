@@ -49,6 +49,7 @@ export class InMemoryBookingRepo implements BookingRepo {
   }
   async cancel(id: string) { const b = this.must(id); b.status = "cancelled"; b.idempotencyKey = null; }
   async getBooking(id: string) { const b = this.bookings.find((x) => x.id === id); return b ? { ...b } : null; }
+  async bookingForEnquiry(enquiryId: string) { const b = this.bookings.find((x) => x.enquiryId === enquiryId && live(x)); return b ? { ...b } : null; }
   async findByIdempotencyKey(key: string) { const b = this.bookings.find((x) => x.idempotencyKey === key && live(x)); return b ? { ...b } : null; }
 
   async touchLastAssigned(designerId: string, at: Date) {

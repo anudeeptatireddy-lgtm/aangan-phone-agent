@@ -54,6 +54,14 @@ export function repoContract(name: string, make: () => Promise<RepoFixture>) {
       const [a, b] = await Promise.all([f.repo.createHold(hold(f)), f.repo.createHold(hold(f, { enquiryId: f.enquiryIds[1] }))]);
       expect([a.ok, b.ok].filter(Boolean)).toHaveLength(1);
     });
+    it("finds the live booking for an enquiry (not a cancelled one)", async () => {
+      expect(await f.repo.bookingForEnquiry(f.enquiryIds[0])).toBeNull();
+      const r = await f.repo.createHold(hold(f));
+      if (!r.ok) throw new Error();
+      expect((await f.repo.bookingForEnquiry(f.enquiryIds[0]))!.id).toBe(r.booking.id);
+      await f.repo.cancel(r.booking.id);
+      expect(await f.repo.bookingForEnquiry(f.enquiryIds[0])).toBeNull();
+    });
     it("finds a booking by idempotency key, and the key is unique", async () => {
       const r = await f.repo.createHold(hold(f, { idempotencyKey: "same-key" }));
       if (!r.ok) throw new Error();

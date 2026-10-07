@@ -22,3 +22,8 @@ local stack: `pnpm db:start` (needs Docker), `pnpm test:supabase-local`, `pnpm d
 `src/core/booking/*` is pure logic; Google Calendar and Telegram are ports (`src/core/ports.ts`) with in-memory fakes in `src/adapters/*/fake.ts`.
 `PgBookingRepo` (`src/db/pg-booking-repo.ts`) and `InMemoryBookingRepo` pass the same contract suite (`tests/booking/repo.contract.ts`); the
 double-booking guard is the `no_double_booking` exclusion constraint. `pnpm simulate` now runs check_fit -> get_slots -> book_slot against localhost.
+
+## Post-call pipeline (Session 4)
+`POST /api/calls/process` (bearer `TOOL_SHARED_SECRET`) runs a finished call through scans -> Gemini extraction -> rules re-run -> persistence -> outbox. `POST /api/outbox/drain`
+delivers owner/Nikhil alerts. Locally `pnpm simulate` replays real transcripts through it with a scripted extractor (no model, no key). A real extractor needs
+`GEMINI_API_KEY` **and** `GEMINI_PAID_TIER_CONFIRMED=true` (the app refuses to start otherwise). `pnpm tsx scripts/gemini-smoke.ts` makes one live call with a synthetic transcript.

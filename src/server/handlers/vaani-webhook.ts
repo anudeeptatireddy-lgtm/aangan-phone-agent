@@ -1,4 +1,5 @@
 import { log } from "@/lib/log";
+import { mapVaaniCallCompleted } from "@/adapters/voice/vaani/call-record";
 import { parseVaaniEnvelope, verifyVaaniSignature } from "@/adapters/voice/vaani/webhook";
 import type { Deps } from "../deps";
 
@@ -16,7 +17,22 @@ export async function handleVaaniWebhook(req: Request, deps: Deps): Promise<Resp
   // Envelope id is reused across Vaani retries: key idempotency on it.
   const duplicate = deps.repo.recordWebhookEvent(env.id, env.type, deps.now().toISOString());
   log("info", "vaani_webhook", { event: env.type, id: env.id, duplicate });
-  // Post-call processing (transcript, extraction, scans) is Session 4; until the payload fields are
-  // confirmed against Vaani docs we only acknowledge and de-duplicate.
+  if (duplicate) return json(200, { ok: true, duplicate: true });
+
+  // Call events: map to our vendor-neutral record and run the pipeline. The payload fields are undocumented (docs/vaani-findings.md,
+  // item 6), so today the mapper returns null: we store the event as 'unmapped', acknowledge it (so Vaani stops retrying) and alert the owner once.
+  if (env.type === "call.completed" || env.type === "call.failed") {
+    const record = mapVaaniCallCompleted(env);
+    if (record && deps.pipeline) {
+      await deps.pipeline.process(record);
+      deps.repo.setWebhookStatus(env.id, "processed");
+      return json(200, { ok: true, duplicate: false, mapped: true });
+    }
+    deps.repo.setWebhookStatus(env.id, "unmapped");
+    await deps.postcall.enqueue("owner_alert", { flag: "other", vendorCallId: env.id, severity: "high",
+      evidence: `Vaani ${env.type} received but its payload cannot be mapped yet (fields undocumented). Calls are NOT being post-processed.` }, `owner_alert:vaani_unmapped:${env.type}`);
+    return json(200, { ok: true, duplicate: false, mapped: false });
+  }
+  deps.repo.setWebhookStatus(env.id, "ignored");
   return json(200, { ok: true, duplicate });
 }

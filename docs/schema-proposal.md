@@ -20,9 +20,9 @@ encrypted (`phone_enc`, AES-256-GCM, key `PHONE_ENC_KEY`); lookups use a keyed h
 `bookings`. Every enquiry is stamped with the active rule version by a trigger (and `rule_version_id` is NOT NULL). `usage_costs`
 is the ledger; `calls.cost_*` are cached roll-ups.
 
-## Tables (19)
+## Tables (20)
 callers, vip_referrers, designers, rule_versions, approved_texts, studio_hours, festival_dates, enquiries, calls, rule_evaluations,
-bookings, handoffs, escalations, usage_costs, audit_flags, call_reviews, crm_links, webhook_events, dashboard_users.
+bookings, handoffs, escalations, usage_costs, audit_flags, call_reviews, crm_links, webhook_events, dashboard_users, outbox.
 A test fails if a table is added without being listed (and therefore without RLS being considered).
 
 ## Approval conditions (owner, 2026-10-07) — verified by tests in `tests/db/migration.test.ts`
@@ -40,3 +40,8 @@ Renamed from the v1 proposal to satisfy the strict reading: `usage_costs.unit_pr
 ## Session 3 addition
 `handoffs.status` gained `pending` (default): the booking is confirmed but the Telegram note has not been delivered yet; a retry job (Session 5) sends it.
 The booking repo contract also runs on the local Supabase: `tests/db-local/booking-repo.local.test.ts` (12 checks incl. two simultaneous holds on real connections).
+
+## Session 4 addition (migration 0002)
+`calls.summary`, `calls.post_call_status` (pending / processed / extraction_failed), `calls.processed_at`; `enquiries.designer_note` and `enquiries.rule_input` (the exact input the
+engine evaluated); audit kind `extraction_failed`; and the **`outbox`** table (transactional outbox: HubSpot deal, confirmation email, owner/Nikhil alerts; `dedupe_key` unique, so
+re-processing a call is safe). RLS is enabled and forced on it like every other table. Verified on the local Supabase: 20 tables, advisor clean, `PgPostCallRepo` passes the same contract as the in-memory repo.

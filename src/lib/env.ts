@@ -9,6 +9,12 @@ const Env = z.object({
   // Optional until the Vaani integration is verified against docs (hard rule 7).
   VAANI_API_KEY: z.string().optional(),
   VAANI_WEBHOOK_SECRET: z.string().optional(),
+  // Post-call extraction. A Gemini key is only accepted together with an explicit paid-tier confirmation (hard rule 6).
+  GEMINI_API_KEY: z.string().optional(),
+  GEMINI_PAID_TIER_CONFIRMED: z.enum(["true", "false"]).optional(),
+  // Telegram chat ids for audit alerts (price said, complaint not escalated, ...). Numeric strings.
+  OWNER_TELEGRAM_CHAT_ID: z.string().regex(/^-?\d+$/).optional(),
+  NIKHIL_TELEGRAM_CHAT_ID: z.string().regex(/^-?\d+$/).optional(),
   // Live-transfer targets (E.164). Complaints -> design lead, falling back to front desk; "I want a person" -> front desk.
   FRONT_DESK_NUMBER: z.string().optional(),
   DESIGN_LEAD_NUMBER: z.string().optional(),

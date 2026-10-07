@@ -1,6 +1,8 @@
 // Local simulator: drives the real tool endpoints on localhost the way the voice agent would.
 // Usage: pnpm dev (terminal 1)  |  pnpm simulate (terminal 2)
 import { existsSync } from "node:fs";
+import { emptyExtraction } from "../src/core/postcall/extraction";
+import { loadTurns } from "../tests/postcall/transcripts";
 if (existsSync(".env.local")) process.loadEnvFile(".env.local");
 
 const BASE = process.env.BASE_URL ?? "http://localhost:3000";
@@ -94,4 +96,49 @@ await scenario("A non-fit enquiry can never be booked, even if the model tries (
 await scenario("Auth: wrong secret is rejected", async () => {
   const r = await fetch(`${BASE}/api/tools/lookup-caller`, { method: "POST", headers: { authorization: "Bearer wrong" }, body: "{}" });
   console.log("  ->", r.status);
+});
+
+// ---------------------------------------------------------------- post-call pipeline ----
+const get = async (path: string) => (await fetch(`${BASE}${path}`, { headers: { authorization: `Bearer ${process.env.TOOL_SHARED_SECRET}` } })).json();
+const OPEN = "Namaste, Aangan Studio. I'm Aangan's virtual assistant, and this call is recorded so our designers have your details. How can I help?";
+const callRec = (id: string, transcript: unknown[], o: Record<string, unknown> = {}) => ({ vendor: "fake", vendorCallId: id, callerPhone: "+919000000021",
+  rangAt: new Date(Date.now() - 8 * 60e3).toISOString(), answeredAt: new Date(Date.now() - 8 * 60e3 + 2e3).toISOString(), endedAt: new Date().toISOString(),
+  durationS: 450, endedReason: "completed", transcript, ...o });
+const extraction = (o: Record<string, unknown>) => ({ ...emptyExtraction(), language: "en", intent: "new_enquiry", ...o });
+const preload = (id: string, e: unknown) => call("/api/dev/extractions", { vendorCallId: id, extraction: e });
+
+await scenario("POST-CALL 1: clean agent call, live tools -> booking -> pipeline (outcome booked, note drafted, deal + email queued)", async () => {
+  const id = "sim-pc-1";
+  await call("/api/tools/lookup-caller", { phone: "9000000021", call_id: id, intent: "new_enquiry" });
+  const fit = await call("/api/tools/check-fit", { location: "Kothrud", project_type: "home", scope: "full_home", bhk: 3, carpet_sqft: 1400, deadline_date: "2027-03-31", decision_maker: "owner",
+    owners_attending: true, call_id: id, phone: "9000000021", caller_name: "Priya", caller_email: "priya@example.com" });
+  const enq = (fit.body as { enquiry_id: string }).enquiry_id;
+  const slots = await call("/api/tools/get-slots", { enquiry_id: enq });
+  await call("/api/tools/book-slot", { enquiry_id: enq, start: (slots.body as { slots: { start: string }[] }).slots[1]!.start });
+  await preload(id, extraction({ caller_name: "Priya", caller_email: "priya@example.com", location: "Kothrud", project_type: "home", scope: "full_home", bhk: 3, carpet_sqft: 1400,
+    decision_maker: "owner", owners_attending: true, deadline: { kind: "month", date: null, month: 3, year: null, festival: null, value: null, unit: null, text: "by March" }, summary: "3BHK full redesign in Kothrud; owners will attend." }));
+  const turns = [{ speaker: "agent", text: OPEN }, { speaker: "caller", text: "We have a 3BHK in Kothrud, about 1,400 sq ft, and want to redo the whole thing." },
+    { speaker: "agent", text: "I have Thursday at 11 or Friday at 10. Which suits you?" }, { speaker: "caller", text: "Friday." }, { speaker: "agent", text: "Booked." }];
+  show("process", await call("/api/calls/process", callRec(id, turns)));
+  show("state", { status: 200, body: await get(`/api/dev/state?call=${id}`) });
+});
+
+await scenario("POST-CALL 2: the human desk's REAL T10 call (it quoted a floor: the agent must never do this)", async () => {
+  const id = "sim-pc-2";
+  await preload(id, extraction({ location: "Kharadi", project_type: "home", scope: "partial_home", rooms_count: 2, bhk: 1, carpet_sqft: 550, budget_inr: 150000 }));
+  show("process", await call("/api/calls/process", callRec(id, loadTurns("T10"), { callerPhone: "+919000000022" })));
+  show("state", { status: 200, body: await get(`/api/dev/state?call=${id}`) });
+});
+
+await scenario("POST-CALL 3: the REAL T09 complaint, handled as if the agent had qualified it instead of escalating", async () => {
+  const id = "sim-pc-3";
+  await preload(id, extraction({ intent: "complaint", location: "Viman Nagar", complaint_signals: ["my designer hasn't replied in five days"] }));
+  show("process", await call("/api/calls/process", callRec(id, loadTurns("T09"), { callerPhone: "+919000000023" })));
+  show("state", { status: 200, body: await get(`/api/dev/state?call=${id}`) });
+});
+
+await scenario("DRAIN alerts: what the owner and Nikhil would receive on Telegram", async () => {
+  show("drain", await call("/api/outbox/drain", {}));
+  const st = (await get("/api/dev/state")) as { alertsSent: { chatId: number; text: string }[] };
+  for (const al of st.alertsSent) console.log(`  -> chat ${al.chatId}: ${al.text.replace(/\n/g, " | ")}`);
 });
