@@ -9,7 +9,8 @@ import { checkFit } from "../rules/engine";
 import { scanForMissedComplaint } from "./complaint-scan";
 import { computeAiCost } from "./costs";
 import { checkDisclosure } from "./disclosure";
-import { buildExtractionRequest, ExtractionPort, FitMapping, toFitInput } from "./extraction";
+import { buildExtractionRequest, emptyExtraction, Extraction, ExtractionPort, FitMapping, toFitInput } from "./extraction";
+import { planEscalation } from "../escalation";
 import { scanForPrice } from "./price-scan";
 import type { CallRow, FlagKind, Outcome, PostCallRepo } from "./repo";
 import type { CallRecordInput } from "./types";
@@ -17,7 +18,15 @@ import type { CallRecordInput } from "./types";
 export interface PipelineDeps {
   repo: PostCallRepo;
   bookings: Pick<BookingRepo, "bookingForEnquiry">;
-  extractor: ExtractionPort;
+  /** Optional: without it (e.g. no paid-tier key) the vendor's own entities are all there is, and gaps stay gaps. */
+  extractor?: ExtractionPort;
+  /** Merge a vendor's own extraction into the model's (vendor values win where valid). */
+  refine?: (e: Extraction, rec: CallRecordInput) => Extraction;
+  /**
+   * live_tools: the voice agent called our tools during the call (a live enquiry and booking exist).
+   * prompt_only: it did not; the booking is made by the voice platform (Cal.com) and we decide everything here, afterwards.
+   */
+  mode?: "live_tools" | "prompt_only";
   now: () => Date;
   designerNames?: string[];
   rules?: RuleConfig;
@@ -87,9 +96,9 @@ export class PostCallPipeline {
 
     // ---- extraction (retry once; never retry a rejected request) ----
     const req = buildExtractionRequest(rec.transcript, startedAt, { vendorCallId: id });
-    let result: Awaited<ReturnType<ExtractionPort["extract"]>> | undefined;
+    let result: { data: Extraction; usage?: Awaited<ReturnType<ExtractionPort["extract"]>>["usage"]; model?: string } | undefined;
     let lastErr = "no transcript";
-    if (rec.transcript.length) {
+    if (rec.transcript.length && this.d.extractor) {
       for (let attempt = 0; attempt < 2 && !result; attempt++) {
         try { result = await this.d.extractor.extract(req); }
         catch (err) {
@@ -97,6 +106,8 @@ export class PostCallPipeline {
           if ((err as { code?: string }).code === "rejected") break;
         }
       }
+    } else if (rec.transcript.length && this.d.refine) {
+      result = { data: { ...emptyExtraction(), summary: rec.vendorSummary ?? "" } }; // vendor entities only; no model call, no model cost
     }
     if (!result) {
       log("error", "post-call extraction failed", { vendor_call_id: id, error: lastErr });
@@ -106,16 +117,34 @@ export class PostCallPipeline {
     }
 
     // ---- cost ----
-    const cost = computeAiCost(result.usage, result.model);
-    await repo.addUsageCosts(id, cost.rows, now);
+    const cost = result.usage && result.model ? computeAiCost(result.usage, result.model) : { rows: [], totalInr: 0 };
+    if (cost.rows.length) await repo.addUsageCosts(id, cost.rows, now);
+    if (rec.voiceCostInr !== undefined) await repo.upsertCall(id, { costVoiceInr: rec.voiceCostInr });
 
-    const e = result.data;
+    const e = this.d.refine ? this.d.refine(result.data, rec) : result.data;
     const mapping = toFitInput(e, startedAt);
     if (callerId && (mapping.callerName || mapping.callerEmail || mapping.language)) await repo.updateCaller(callerId, { name: mapping.callerName, email: mapping.callerEmail, language: mapping.language });
 
     // ---- hard rule 4: did a complaint slip through? ----
     const escalations = await repo.escalationsForCall(id);
-    const escalated = escalations.some((x) => x.reason === "complaint" || x.reason === "human_requested");
+    let escalated = escalations.some((x) => x.reason === "complaint" || x.reason === "human_requested");
+
+    // prompt_only: no tool ran during the call, so nobody has been escalated yet. The agent promised a callback; we create it now.
+    // (No live transfer exists in this mode, so the plan is the "transfer failed" one: a short SLA in hours, 10am next working day otherwise.)
+    if (!escalated && this.d.mode === "prompt_only") {
+      const reason = e.intent === "complaint" || e.intent === "existing_client" ? ("complaint" as const) : rec.signals?.wantsPerson ? ("human_requested" as const) : null;
+      if (reason) {
+        const plan = planEscalation(reason, endedAt, hours, { transferFailed: true });
+        await repo.recordEscalation(id, { reason, mode: plan.mode, callbackDueAt: plan.callbackDueAt ? new Date(plan.callbackDueAt) : null, slaMinutes: plan.slaMinutes ?? null,
+          queue: plan.queue ?? null, queueEscalatesTo: plan.queueEscalatesTo ?? null });
+        escalated = true;
+        if (reason === "complaint") {
+          await repo.enqueue("design_lead_alert", { kind: "complaint_callback", vendorCallId: id, dueAt: plan.callbackDueAt, slaMinutes: plan.slaMinutes ?? null }, `design_lead_alert:complaint:${id}`);
+          if (plan.alertNikhil) await repo.enqueue("nikhil_alert", { flag: "other", vendorCallId: id, severity: "high",
+            evidence: `Complaint / existing-client call received after hours. A senior callback was promised by ${plan.callbackDueAt ?? "next working day"}.` }, `nikhil_alert:complaint_after_hours:${id}`);
+        }
+      }
+    }
     const slip = scanForMissedComplaint({ turns: rec.transcript, escalated, intent: e.intent, designerNames: this.d.designerNames });
     if (slip.missed) await raise("missed_complaint", slip.evidence ?? "complaint signals", "complaint_scan", { nikhil: true });
 
@@ -149,7 +178,8 @@ export class PostCallPipeline {
 
     // The LIVE result is authoritative (it decided what the caller was told); the post-call run is the audit.
     const keepLive = !!(base && liveEval);
-    const booking = await this.d.bookings.bookingForEnquiry(enquiryId);
+    const promptOnly = this.d.mode === "prompt_only";
+    const booking = promptOnly ? null : await this.d.bookings.bookingForEnquiry(enquiryId);
     const authoritativeFit = keepLive ? base!.fit : post.result;
 
     let designerNote: string | undefined;
@@ -174,6 +204,12 @@ export class PostCallPipeline {
       await raise("rule_disagreement", `live: ${liveEval.fit} [${liveEval.reasonCodes.join(", ")}] · post-call: ${post.result} [${post.reason_codes.join(", ")}]`, "rules_audit");
 
     // ---- what happens next (delivered by the outbox workers) ----
+    if (promptOnly) {
+      if (escalated) return finish("escalated", enquiryId); // asked for a person: the details are saved for them; the front desk calls back
+      // The booking (if any) lives in Cal.com and arrives by its own webhook: the router matches it and decides who is told what.
+      await repo.enqueue("call_routing", { vendorCallId: id, enquiryId }, `call_routing:${id}`);
+      return finish("review", enquiryId, { }); // provisional: the router sets the final outcome
+    }
     if (saved.fit === "fit") await repo.enqueue("hubspot_deal", { enquiryId, vendorCallId: id, bookingId: booking?.id ?? null }, `hubspot_deal:${enquiryId}`);
     const email = booking?.callerEmail ?? mapping.callerEmail;
     if (booking && email) await repo.enqueue("confirmation_email", { bookingId: booking.id, enquiryId, email, name: mapping.callerName ?? null, startsAt: booking.startsAt.toISOString() }, `confirmation_email:${booking.id}`);

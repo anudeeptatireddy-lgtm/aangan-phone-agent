@@ -18,4 +18,10 @@ export interface CallRecordInput {
   transcript: CallTurn[];
   recordingRef?: string;
   language?: string;
+  /** Vendor's own one-paragraph summary, used when no model extraction is available. */
+  vendorSummary?: string;
+  /** Estimated voice-platform cost of the call in INR (the vendor does not document its cost field). */
+  voiceCostInr?: number;
+  /** Signals the vendor's own extraction picked up (routing hints; the scans still run on the transcript). */
+  signals?: { wantsPerson?: boolean; claimedBooking?: boolean; claimedBookingTime?: string };
 }
