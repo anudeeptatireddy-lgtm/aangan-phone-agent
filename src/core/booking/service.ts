@@ -134,7 +134,7 @@ export class BookingService {
     let chosen: Designer | undefined, bookingId = "";
     for (const x of pickInOrder(free)) {
       const r = await this.d.repo.createHold({ enquiryId: e.id, designerId: x.id, startsAt: start, endsAt: end, idempotencyKey: key,
-        callerEmail: i.callerEmail ?? e.callerEmail ?? null, mode: MODE });
+        callerEmail: i.callerEmail ?? e.callerEmail ?? null, mode: MODE, wantsPrincipal: !!i.wantsPrincipal });
       if (r.ok) { chosen = x; bookingId = r.booking.id; break; }
     }
     if (!chosen) return this.slotTaken(e, i.wantsPrincipal);

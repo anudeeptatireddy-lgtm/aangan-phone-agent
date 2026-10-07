@@ -98,6 +98,84 @@ export function repoContract(name: string, make: () => Promise<RepoFixture>) {
       await f.repo.touchLastAssigned(f.designerIds[0], t("09:00"));
       expect((await f.repo.listActiveDesigners()).find((d) => d.id === f.designerIds[0])!.lastAssignedAt!.toISOString()).toBe(t("09:00").toISOString());
     });
+    it("getDesigner finds any designer by id (active or not)", async () => {
+      expect((await f.repo.getDesigner(f.designerIds[0]))!.id).toBe(f.designerIds[0]);
+      if (f.inactiveDesignerId) expect(await f.repo.getDesigner(f.inactiveDesignerId)).toMatchObject({ active: false });
+      expect(await f.repo.getDesigner("00000000-0000-0000-0000-000000000000")).toBeNull();
+    });
+    it("remembers whether the caller asked for the principal designer", async () => {
+      const a = await f.repo.createHold(hold(f, { wantsPrincipal: true }));
+      const b = await f.repo.createHold(hold(f, { enquiryId: f.enquiryIds[1], startsAt: t("12:00"), endsAt: t("13:00") }));
+      if (!a.ok || !b.ok) throw new Error();
+      expect(a.booking.wantsPrincipal).toBe(true);
+      expect(b.booking.wantsPrincipal).toBe(false);
+      expect((await f.repo.getBooking(a.booking.id))!.wantsPrincipal).toBe(true);
+    });
+
+    describe("handoff lifecycle", () => {
+      async function openHandoff(attemptNo?: number) {
+        const r = await f.repo.createHold(hold(f));
+        if (!r.ok) throw new Error();
+        const h = await f.repo.createHandoff({ bookingId: r.booking.id, designerId: f.designerIds[0], dueAt: t("11:00"), attemptNo });
+        return { booking: r.booking, h };
+      }
+      it("lists a booking's handoffs in attempt order and by status", async () => {
+        const { booking, h } = await openHandoff();
+        const h2 = await f.repo.createHandoff({ bookingId: booking.id, designerId: f.designerIds[1], dueAt: t("12:00"), attemptNo: 2 });
+        expect((await f.repo.handoffsForBooking(booking.id)).map((x) => x.attemptNo)).toEqual([1, 2]);
+        expect((await f.repo.listHandoffsByStatus(["pending"])).map((x) => x.id).sort()).toEqual([h.id, h2.id].sort());
+        expect(await f.repo.listHandoffsByStatus(["accepted"])).toEqual([]);
+      });
+      it("transitions are compare-and-set: only a handoff in an expected state moves", async () => {
+        const { h } = await openHandoff();
+        await f.repo.markHandoffSent(h.id, 11, t("10:30"));
+        expect(await f.repo.transitionHandoff(h.id, ["sent", "pending"], "accepted", t("10:40"))).toBe(true);
+        expect(await f.repo.transitionHandoff(h.id, ["sent", "pending"], "timed_out", t("11:05"))).toBe(false); // too late
+        const after = (await f.repo.getHandoff(h.id))!;
+        expect(after.status).toBe("accepted");
+        expect(after.acceptedAt!.toISOString()).toBe(t("10:40").toISOString());
+      });
+      it("a decline records the time and the reason", async () => {
+        const { h } = await openHandoff();
+        expect(await f.repo.transitionHandoff(h.id, ["sent", "pending"], "declined", t("10:45"), "on leave")).toBe(true);
+        const after = (await f.repo.getHandoff(h.id))!;
+        expect(after).toMatchObject({ status: "declined", declineReason: "on leave" });
+        expect(after.declinedAt!.toISOString()).toBe(t("10:45").toISOString());
+      });
+      it("two simultaneous transitions (a late Accept and the timeout sweep): exactly one wins", async () => {
+        const { h } = await openHandoff();
+        const [x, y] = await Promise.all([f.repo.transitionHandoff(h.id, ["pending"], "accepted", t("11:00")), f.repo.transitionHandoff(h.id, ["pending"], "timed_out", t("11:00"))]);
+        expect([x, y].filter(Boolean)).toHaveLength(1);
+      });
+      it("links a handoff to the one that replaced it, and records that the design lead was alerted", async () => {
+        const { booking, h } = await openHandoff();
+        const h2 = await f.repo.createHandoff({ bookingId: booking.id, designerId: f.designerIds[1], dueAt: t("12:00"), attemptNo: 2 });
+        await f.repo.linkReassignedHandoff(h.id, h2.id);
+        await f.repo.markDesignLeadAlerted(h.id, t("11:05"));
+        const after = (await f.repo.getHandoff(h.id))!;
+        expect(after.reassignedToHandoffId).toBe(h2.id);
+        expect(after.designLeadAlertedAt!.toISOString()).toBe(t("11:05").toISOString());
+      });
+    });
+
+    describe("reassigning a booking to another designer", () => {
+      it("moves the booking and its calendar event; the old designer's slot is free again", async () => {
+        const r = await f.repo.createHold(hold(f));
+        if (!r.ok) throw new Error();
+        await f.repo.confirm(r.booking.id, "evt-old");
+        const moved = await f.repo.reassignBooking(r.booking.id, f.designerIds[1], "evt-new");
+        expect(moved).toMatchObject({ ok: true, booking: { designerId: f.designerIds[1], calendarEventId: "evt-new", status: "confirmed" } });
+        expect((await f.repo.createHold(hold(f, { enquiryId: f.enquiryIds[1] }))).ok).toBe(true); // designer 0 is free at 10:00 again
+      });
+      it("refuses when the new designer is already busy (the same exclusion constraint)", async () => {
+        const a = await f.repo.createHold(hold(f));
+        const b = await f.repo.createHold(hold(f, { enquiryId: f.enquiryIds[1], designerId: f.designerIds[1], startsAt: t("10:30"), endsAt: t("11:30") }));
+        if (!a.ok || !b.ok) throw new Error();
+        expect(await f.repo.reassignBooking(a.booking.id, f.designerIds[1], "evt")).toEqual({ ok: false, reason: "conflict" });
+        expect((await f.repo.getBooking(a.booking.id))!.designerId).toBe(f.designerIds[0]);
+      });
+    });
+
     it("records a handoff as pending, then marks it sent with the Telegram message id", async () => {
       const r = await f.repo.createHold(hold(f));
       if (!r.ok) throw new Error();

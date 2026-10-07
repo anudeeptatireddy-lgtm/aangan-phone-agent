@@ -27,6 +27,7 @@ export interface Booking {
   idempotencyKey: string | null;
   callerEmail: string | null;
   mode: string;
+  wantsPrincipal: boolean;
 }
 
 export type HandoffStatus = "pending" | "sent" | "accepted" | "declined" | "timed_out" | "reassigned";
@@ -40,6 +41,11 @@ export interface HandoffRecord {
   sentAt: Date | null;
   dueAt: Date;                // sent + 30 working minutes
   status: HandoffStatus;
+  acceptedAt: Date | null;
+  declinedAt: Date | null;
+  declineReason: string | null;
+  reassignedToHandoffId: string | null;
+  designLeadAlertedAt: Date | null;
 }
 
 // Operational parameters. The owner did not specify these; they are ASSUMPTIONS to confirm (docs/decisions-v1.md, Session 3).

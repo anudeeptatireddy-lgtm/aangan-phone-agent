@@ -23,4 +23,17 @@ export interface HandoffNote { text: string; acceptData: string; declineData: st
 export interface NotifierPort {
   sendHandoff(chatId: number, note: HandoffNote): Promise<{ messageId: number }>;
   sendAlert(chatId: number, text: string): Promise<void>;
+  /** Edit a sent note. Omitting `buttons` removes the inline keyboard. */
+  editHandoff(chatId: number, messageId: number, text: string, buttons?: HandoffButton[]): Promise<void>;
+  /** Telegram requires every callback press to be answered, even with no text. */
+  answerCallback(callbackQueryId: string, text?: string): Promise<void>;
+}
+
+export interface EmailMessage { to: string; subject: string; text: string; html?: string; idempotencyKey: string }
+export interface EmailPort { send(m: EmailMessage): Promise<{ id: string }> }
+
+export interface CrmContact { email?: string; phone?: string; firstName?: string; lastName?: string }
+export interface CrmPort {
+  /** Create-or-update the contact and create a deal associated with it. The deal carries NO amount (the system never sets a price). */
+  createDealForEnquiry(i: { contact: CrmContact; deal: { name: string; description: string } }): Promise<{ dealId: string; contactId: string }>;
 }
