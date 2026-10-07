@@ -4,8 +4,14 @@ The **authoritative DDL is `supabase/migrations/20261007000001_init.sql`**; `sup
 config (`pnpm db:seed:gen`). Both are tested against a real Postgres (PGlite + `btree_gist`) in `tests/db/`. This file keeps only
 the design notes and the owner's approval conditions.
 
-Status: **not yet applied to Supabase** (no project yet). Tested locally only; real-Supabase behaviour of `btree_gist` placement and
-default privileges must be confirmed on first apply.
+Status: **applied and verified on the local Supabase stack** (Docker, CLI v2.120, Postgres 17); no hosted project yet.
+`pnpm db:start && pnpm test:supabase-local` (10 checks, against Supabase's real roles and PostgREST):
+- migration applied by the CLI, seed loaded (rule v1 active, 36 scripts, 3 TEST designers);
+- `btree_gist` installed in the `extensions` schema, and the double-booking exclusion constraint rejects an overlapping booking (back-to-back is fine);
+- all 19 tables have RLS enabled **and forced**, zero policies;
+- `anon` and `authenticated` hold no privileges, including on tables created later (default privileges revoked);
+- SQL as `anon`/`authenticated` -> `permission denied` on every table; PostgREST with the anon key -> **401 / 42501 on every table, GET and POST** (a bogus key returns a different error, so this cannot pass vacuously); the service role can read;
+- no plaintext phone column; Supabase's own security advisor reports **no findings** (it first flagged a mutable function search_path and btree_gist in `public`; both fixed).
 
 ## Principles
 Postgres, `timestamptz` everywhere, channel-neutral (`channel` column), server-side service role only. Full phone stored once,

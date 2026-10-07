@@ -36,7 +36,12 @@ const WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "e
 const daysBetween = (a: string, b: string) => (Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000;
 const mentions = (text: string, names: string[]) => names.some((n) => (/^[a-z ]+$/.test(n) ? new RegExp(`\\b${n}\\b`).test(text) : text.includes(n)));
 
-export function resolveFestival(text: string, callDate: Date, locale: Locale = "en", table: FestivalDate[] = FESTIVAL_DATES): FestivalResolution {
+/** Read-back languages enabled for callers. Hindi/Marathi wording exists but stays OFF until native review (owner decision, round 3). */
+export const READBACK_ENABLED_LOCALES: readonly Locale[] = ["en"];
+
+export function resolveFestival(text: string, callDate: Date, requested: Locale = "en", table: FestivalDate[] = FESTIVAL_DATES,
+  enabled: readonly Locale[] = READBACK_ENABLED_LOCALES): FestivalResolution {
+  const locale: Locale = enabled.includes(requested) ? requested : "en";
   const t = text.toLowerCase();
   const hit = table.find((f) => mentions(t, f.names));
   if (!hit) return { resolved: false, reason: mentions(t, KNOWN_UNCONFIGURED) ? "unknown_event" : "no_event" };

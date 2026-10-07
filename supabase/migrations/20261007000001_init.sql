@@ -2,7 +2,8 @@
 -- Owner conditions: phone numbers encrypted/hashed; RLS on every table; rule_version on every enquiry;
 -- per-call cost fields; no price fields (the system stores no quote/rate; only the caller's volunteered budget and tooling costs).
 
-create extension if not exists btree_gist;
+create schema if not exists extensions;
+create extension if not exists btree_gist with schema extensions;   -- not in public (Supabase advisor: extension_in_public)
 
 create type call_outcome as enum ('booked','not_fit','review','escalated','closed_other','dropped','missed');
 create type fit_result   as enum ('fit','not_fit','unclear');
@@ -99,10 +100,12 @@ create table enquiries (
 );
 
 -- Every enquiry is stamped with the active rule version, so it can never exist without one.
-create function stamp_rule_version() returns trigger language plpgsql as $$
+create function stamp_rule_version() returns trigger language plpgsql
+  set search_path = ''                       -- immutable search path (Supabase advisor: function_search_path_mutable)
+as $$
 begin
   if new.rule_version_id is null then
-    new.rule_version_id := (select id from rule_versions where status = 'active');
+    new.rule_version_id := (select id from public.rule_versions where status = 'active');
   end if;
   return new;
 end $$;

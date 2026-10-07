@@ -157,9 +157,9 @@ describe("resolve_date (festival_dates)", () => {
     const j = await (await handleTool("resolve_date", post("/x", { text: "before Diwali" }), sep8())).json();
     expect(j).toMatchObject({ resolved: true, date: "2026-11-08", readback: "Diwali is on 8 November, so about nine weeks from now. Is that your deadline?", readback_status: "approved" });
   });
-  it("returns Hindi read-back when asked", async () => {
+  it("a Hindi caller still gets the English read-back (HI/MR pending native review)", async () => {
     const j = await (await handleTool("resolve_date", post("/x", { text: "दिवाली से पहले", language: "hi" }), sep8())).json();
-    expect(j.readback).toContain("नवंबर");
+    expect(j.readback).toBe("Diwali is on 8 November, so about nine weeks from now. Is that your deadline?");
   });
   it("unknown events must be asked for as a calendar date, never inferred from a stated distance", async () => {
     const j = await (await handleTool("resolve_date", post("/x", { text: "before Ganesh Chaturthi, it's two weeks away" }), sep8())).json();

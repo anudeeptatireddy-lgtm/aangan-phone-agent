@@ -16,10 +16,18 @@ describe("festival_dates: never trust a festival's distance as the caller states
   it("matches Hindi / Marathi / alternate spellings", () => {
     for (const t of ["दिवाली से पहले", "दिवाळी आधी", "before Deepavali"]) expect(resolveFestival(t, ist("2026-09-08T10:00:00"), "en").resolved, t).toBe(true);
   });
-  it("localised readback", () => {
-    const hi = resolveFestival("दिवाली से पहले", ist("2026-09-08T10:00:00"), "hi");
+  it("read-back runs in English until Hindi/Marathi are natively reviewed, even when they are requested", () => {
+    for (const loc of ["hi", "mr"] as const) {
+      const r = resolveFestival("दिवाली से पहले", ist("2026-09-08T10:00:00"), loc);
+      expect(r.resolved && r.readback).toBe("Diwali is on 8 November, so about nine weeks from now. Is that your deadline?");
+      expect(r.resolved && r.readback_status).toBe("approved");
+    }
+  });
+  it("localised read-back is built and ready: it switches on by enabling the locale after review", () => {
+    const hi = resolveFestival("दिवाली से पहले", ist("2026-09-08T10:00:00"), "hi", FESTIVAL_DATES, ["en", "hi"]);
     expect(hi.resolved && hi.readback).toContain("नवंबर");
-    const mr = resolveFestival("दिवाळी आधी", ist("2026-09-08T10:00:00"), "mr");
+    expect(hi.resolved && hi.readback_status).toBe("draft_pending_native_review");
+    const mr = resolveFestival("दिवाळी आधी", ist("2026-09-08T10:00:00"), "mr", FESTIVAL_DATES, ["en", "mr"]);
     expect(mr.resolved && mr.readback).toContain("नोव्हेंबर");
   });
   it("short distances are read back in days; singular week", () => {

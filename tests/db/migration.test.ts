@@ -34,6 +34,14 @@ describe("schema v2 meets the owner's approval conditions", () => {
     }
   });
 
+  it("hardening: functions pin their search_path and btree_gist is not in the public schema", async () => {
+    const f = await rows<{ proname: string; proconfig: string[] | null }>("select p.proname, p.proconfig from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public'");
+    expect(f.length).toBeGreaterThan(0);
+    for (const x of f) expect(x.proconfig?.some((c) => c.startsWith("search_path=")), x.proname).toBe(true);
+    const e = await rows<{ ns: string }>("select extnamespace::regnamespace::text as ns from pg_extension where extname='btree_gist'");
+    expect(e[0]!.ns).toBe("extensions");
+  });
+
   it("phone numbers: only hash, ciphertext and masked columns exist; none is plaintext", async () => {
     const c = await rows<{ table_name: string; column_name: string }>("select table_name, column_name from information_schema.columns where table_schema='public' and (column_name ilike '%phone%' or column_name ilike '%mobile%' or column_name ilike '%e164%')");
     expect(c.map((r) => `${r.table_name}.${r.column_name}`).sort()).toEqual(["callers.phone_enc", "callers.phone_hash", "callers.phone_masked"]);

@@ -10,7 +10,11 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "simulate": "tsx scripts/simulate-call.ts",
-    "db:seed:gen": "tsx scripts/gen-seed.ts"
+    "db:seed:gen": "tsx scripts/gen-seed.ts",
+    "test:supabase-local": "SUPABASE_LOCAL=1 vitest run tests/db-local",
+    "db:start": "supabase start -x realtime,storage-api,imgproxy,mailpit,studio,edge-runtime,logflare,vector,supavisor,postgres-meta",
+    "db:stop": "supabase stop",
+    "db:reset": "supabase db reset"
   },
   "dependencies": {
     "next": "^16.4.0",
@@ -21,8 +25,11 @@
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
     "@types/node": "^26.6.4",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "pg": "^8.23.1",
+    "supabase": "^2.120.0",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vitest": "^5.0.3"

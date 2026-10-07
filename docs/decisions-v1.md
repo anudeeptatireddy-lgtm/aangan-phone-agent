@@ -73,3 +73,17 @@ Provenance: all wording and rules below are recorded as **approved by project ow
 5. **Open:** the Vaani and GitHub fields were left as "[fill in…]" placeholders, so the Vaani key's origin / real key and the repo URL are
    still unknown. Live calls stay blocked on Vaani.
 6. **Order:** Session 1 (foundation + schema) first, then Session 3 (booking). Supabase project, test calendar and Telegram chat id to follow.
+
+## Round 3 — project owner, 2026-10-07
+1. **Vaani key:** confirmed the owner's own; used once on the documented endpoint: **HTTP 401, the API wants `vv_live_…` keys**. Exact list of
+   undocumented features and what to ask/check: `docs/vaani-findings.md`. Live calls stay blocked.
+2. **Git:** repo initialised; `.gitignore` covers `.env*`, `node_modules` and local Supabase state; all history scanned: no secrets
+   (only the fake placeholder numbers +919000000000/1 used in tests, and a dummy `vv_whk_testsecret`). GitHub: `gh auth status` reports the
+   token invalid, so the private repo `aangan-phone-agent` could not be created (owner to run `gh auth login`). From now on: commit and push at the end of every session.
+3. **Supabase local stack (Docker) replaces PGlite as the source of truth:** `supabase init/start`, migration + seed applied by the CLI, verified by
+   `pnpm test:supabase-local` (10 checks). Results in `docs/schema-proposal.md`. PGlite tests stay as a fast Docker-free guard.
+4. **Confirmed:** person request with < 30 min of working hours left after a failed transfer → after-hours choice.
+5. **Native review:** HI/MR drafts stay `draft_pending_native_review`; the festival read-back runs **in English only** until reviewed (`resolve_date`
+   returns the English read-back regardless of the language requested).
+6. **Session 3:** booking against adapter interfaces with in-memory fakes for Google Calendar and Telegram; real adapters swapped in when the
+   owner supplies the test calendar and Telegram chat id.
