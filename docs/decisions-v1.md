@@ -137,3 +137,12 @@ Assumptions I made (please confirm):
 Needs from the owner: a **paid-tier Gemini key** (`GEMINI_API_KEY` + `GEMINI_PAID_TIER_CONFIRMED=true`; the app refuses to start with a key but no confirmation), then run
 `pnpm tsx scripts/gemini-smoke.ts` once; **Telegram chat ids** for owner alerts and Nikhil (`OWNER_TELEGRAM_CHAT_ID`, `NIKHIL_TELEGRAM_CHAT_ID`); and from Vaani a real `call.completed`
 payload. Until then the Vaani webhook stores the event as `unmapped`, acknowledges it, and alerts the owner once that calls are not being post-processed (`docs/vaani-findings.md` item 6).
+
+## Session 5 — handoff, CRM, email (assumptions to confirm)
+1. A designer who declines, or does not accept within 30 working minutes (Mon-Fri 10-19 IST), loses the booking to the next eligible designer (least recently assigned, free at that time, has a Telegram chat). Nobody who already had it is asked again. A principal-requested booking only goes to a principal.
+2. On timeout the design lead is alerted first, then reassignment runs. If nobody can take it, the design lead, the owner and Nikhil are all alerted; the booking stays with the original designer and the caller is not contacted by the system.
+3. Reassignment moves the calendar event (new created, old deleted) and sends the new designer a note marked "Reassigned".
+4. Only the designer whose chat id matches can press the buttons for that handoff; a stale press (already accepted, timed out) is answered "already handled".
+5. HubSpot gets a deal for every `fit` enquiry (booked or not), described by the designer note (no phone, no email, no amount). Contacts are matched by email; a caller without an email creates a new contact (can duplicate: assumption).
+6. The confirmation email is English only (HI/MR pending native review), carries no prices, and is skipped if the booking was cancelled by the time it is sent.
+7. A failed outbox item is retried every minute (cron tick) up to 5 times, then marked failed and the owner is alerted.
