@@ -2,6 +2,9 @@ import { DEFAULT_HOURS, HoursConfig } from "@/core/hours";
 import { getEnv, Env } from "@/lib/env";
 import { FakeCalendar } from "@/adapters/calendar/fake";
 import { FakeNotifier } from "@/adapters/notify/fake";
+import { TelegramNotifier } from "@/adapters/notify/telegram";
+import { HandoffService } from "@/core/handoff/service";
+import type { NotifierPort } from "@/core/ports";
 import { BookingService } from "@/core/booking/service";
 import { DEFAULT_BOOKING_CONFIG, BookingConfig, Designer } from "@/core/booking/types";
 import { FakeExtractor } from "@/adapters/llm/fake";
@@ -14,6 +17,14 @@ import { InMemoryPostCallRepo } from "./postcall-repo";
 import { InMemoryEnquiryStore } from "./enquiry-store";
 import { InMemoryRepo } from "./repo";
 
+const notConfigured = () => Promise.reject(new Error("Telegram is not configured (TELEGRAM_BOT_TOKEN)"));
+class UnconfiguredNotifier implements NotifierPort {
+  sendHandoff = notConfigured as NotifierPort["sendHandoff"];
+  sendAlert = notConfigured;
+  editHandoff = notConfigured;
+  answerCallback = notConfigured;
+}
+
 export interface Deps {
   env: Env;
   repo: InMemoryRepo;
@@ -24,7 +35,9 @@ export interface Deps {
   enquiries: InMemoryEnquiryStore;
   bookingRepo: InMemoryBookingRepo;
   calendar: FakeCalendar;
-  notifier: FakeNotifier;
+  notifier: NotifierPort;
+  fakeNotifier: FakeNotifier | undefined; // only when the in-memory fake is in use (dev/test)
+  handoff: HandoffService;
   booking: BookingService;
   // Session 4: post-call pipeline
   postcall: InMemoryPostCallRepo;
@@ -48,7 +61,11 @@ export function makeDeps(o: { env?: Record<string, string | undefined>; now?: ()
   const hours = o.hours ?? DEFAULT_HOURS;
   const bookingRepo = new InMemoryBookingRepo(o.designers ?? TEST_DESIGNERS);
   const calendar = new FakeCalendar();
-  const notifier = new FakeNotifier();
+  // Telegram: the real bot only when a token is configured; a recording fake otherwise (in production without a token every send fails loudly, so items wait in the outbox and the sweep reports them).
+  let notifier: NotifierPort, fakeNotifier: FakeNotifier | undefined;
+  if (env.TELEGRAM_BOT_TOKEN) notifier = new TelegramNotifier({ token: env.TELEGRAM_BOT_TOKEN });
+  else if (env.NODE_ENV !== "production") notifier = fakeNotifier = new FakeNotifier();
+  else notifier = new UnconfiguredNotifier();
   const booking = new BookingService({ repo: bookingRepo, calendar, notifier, now, hours, config: o.bookingConfig ?? DEFAULT_BOOKING_CONFIG });
 
   // Extractor: the real Gemini adapter only with a key AND an explicit paid-tier confirmation (it throws otherwise, so a misconfigured
@@ -56,12 +73,16 @@ export function makeDeps(o: { env?: Record<string, string | undefined>; now?: ()
   let extractor: ExtractionPort | undefined, fakeExtractor: FakeExtractor | undefined;
   if (env.GEMINI_API_KEY) extractor = new GeminiExtractor({ apiKey: env.GEMINI_API_KEY, paidTierConfirmed: env.GEMINI_PAID_TIER_CONFIRMED === "true" });
   else if (env.NODE_ENV !== "production") extractor = fakeExtractor = new FakeExtractor();
+  const enquiries = new InMemoryEnquiryStore();
+  const handoff = new HandoffService({ repo: bookingRepo, calendar, notifier, now, hours, config: o.bookingConfig ?? DEFAULT_BOOKING_CONFIG,
+    loadEnquiry: async (id) => enquiries.get(id) ?? null,
+    ownerChatId: env.OWNER_TELEGRAM_CHAT_ID ? Number(env.OWNER_TELEGRAM_CHAT_ID) : null, nikhilChatId: env.NIKHIL_TELEGRAM_CHAT_ID ? Number(env.NIKHIL_TELEGRAM_CHAT_ID) : null });
   const postcall = new InMemoryPostCallRepo(env.PHONE_HASH_PEPPER);
   const pipeline = extractor ? new PostCallPipeline({ repo: postcall, bookings: bookingRepo, extractor, now, hours, designerNames: o.designerNames }) : undefined;
   const alerts = new AlertDrainer({ repo: postcall, notifier,
     ownerChatId: env.OWNER_TELEGRAM_CHAT_ID ? Number(env.OWNER_TELEGRAM_CHAT_ID) : undefined, nikhilChatId: env.NIKHIL_TELEGRAM_CHAT_ID ? Number(env.NIKHIL_TELEGRAM_CHAT_ID) : undefined });
   return { env, repo: new InMemoryRepo(env.PHONE_HASH_PEPPER), now, hours, designerNames: o.designerNames ?? [],
-    enquiries: new InMemoryEnquiryStore(), bookingRepo, calendar, notifier, booking, postcall, extractor, fakeExtractor, pipeline, alerts };
+    enquiries, bookingRepo, calendar, notifier, fakeNotifier, handoff, booking, postcall, extractor, fakeExtractor, pipeline, alerts };
 }
 
 // Process-wide singleton for the Next dev server (state is in-memory until Supabase lands).

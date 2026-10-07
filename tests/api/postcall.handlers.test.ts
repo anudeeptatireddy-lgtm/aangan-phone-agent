@@ -86,8 +86,8 @@ describe("end to end: live call -> booking -> post-call", () => {
     await process_(callBody("vc-slip", { transcript: [a(OPEN), c("How much would it cost?"), a("Around 15 lakh, roughly.")] }), d);
     const r = await handleDrainOutbox(req({}), d);
     expect(await r.json()).toMatchObject({ sent: 1 });
-    expect(d.notifier.alerts[0]).toMatchObject({ chatId: 111 });
-    expect(d.notifier.alerts[0]!.text).toContain("PRICE SAID BY THE AGENT");
+    expect(d.fakeNotifier!.alerts[0]).toMatchObject({ chatId: 111 });
+    expect(d.fakeNotifier!.alerts[0]!.text).toContain("PRICE SAID BY THE AGENT");
   });
   it("drain requires the secret", async () => {
     expect((await handleDrainOutbox(req({}, null), d)).status).toBe(401);

@@ -15,6 +15,19 @@ const Env = z.object({
   // Telegram chat ids for audit alerts (price said, complaint not escalated, ...). Numeric strings.
   OWNER_TELEGRAM_CHAT_ID: z.string().regex(/^-?\d+$/).optional(),
   NIKHIL_TELEGRAM_CHAT_ID: z.string().regex(/^-?\d+$/).optional(),
+  // Telegram bot (designer handoffs + alerts). The webhook secret is the secret_token given to setWebhook.
+  TELEGRAM_BOT_TOKEN: z.string().min(20).optional(),
+  TELEGRAM_WEBHOOK_SECRET: z.string().regex(/^[A-Za-z0-9_-]{16,256}$/, "TELEGRAM_WEBHOOK_SECRET: 16-256 chars of A-Z a-z 0-9 _ -").optional(),
+  // HubSpot (deal per qualified enquiry). Pipeline and stage ids are read from the account, never guessed.
+  HUBSPOT_ACCESS_TOKEN: z.string().optional(),
+  HUBSPOT_PIPELINE_ID: z.string().optional(),
+  HUBSPOT_DEAL_STAGE_ID: z.string().optional(),
+  // Resend (caller confirmation email). The from-address must be on a domain verified in Resend.
+  RESEND_API_KEY: z.string().optional(),
+  RESEND_FROM: z.string().optional(),
+  RESEND_REPLY_TO: z.string().optional(),
+  // Authenticates the scheduled tick (Vercel sends it as a bearer token).
+  CRON_SECRET: z.string().min(16).optional(),
   // Live-transfer targets (E.164). Complaints -> design lead, falling back to front desk; "I want a person" -> front desk.
   FRONT_DESK_NUMBER: z.string().optional(),
   DESIGN_LEAD_NUMBER: z.string().optional(),

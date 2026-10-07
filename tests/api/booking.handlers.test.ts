@@ -42,7 +42,7 @@ describe("get_slots + book_slot end to end", () => {
     const booked = await call("book_slot", { enquiry_id: fit.enquiry_id, start: slots.json.slots[1].start }, d);
     expect(booked.json).toMatchObject({ ok: true, handoff_sent: true });
     expect(d.calendar.events).toHaveLength(1);
-    expect(d.notifier.handoffs).toHaveLength(1);
+    expect(d.fakeNotifier!.handoffs).toHaveLength(1);
     const text = JSON.stringify([slots.json, booked.json]);
     expect(text).not.toMatch(/TEST Designer|priya@example\.com|\+?\d{10}/);
   });

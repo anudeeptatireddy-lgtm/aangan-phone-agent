@@ -9,7 +9,7 @@ export async function GET(req: Request) {
   const id = url.searchParams.get("call");
   return Response.json({
     outbox: [...deps.postcall.outbox.values()].map((o) => ({ kind: o.kind, status: o.status, dedupeKey: o.dedupeKey })),
-    alertsSent: deps.notifier.alerts,
+    alertsSent: deps.fakeNotifier!.alerts,
     ...(id ? { call: await deps.postcall.getCall(id).then((c) => c && { outcome: c.outcome, intent: c.intent, status: c.postCallStatus, disclosureOk: c.disclosureOk, afterHours: c.afterHours, costAiInr: c.costAiInr }), flags: await deps.postcall.listFlags(id) } : {}),
   });
 }
