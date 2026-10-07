@@ -41,7 +41,7 @@ describe("get_slots + book_slot end to end", () => {
     expect(slots.json.slots[0].label).toBe("Wednesday 7 October, 2:00 pm"); // 12:00 now + 2h minimum lead
     const booked = await call("book_slot", { enquiry_id: fit.enquiry_id, start: slots.json.slots[1].start }, d);
     expect(booked.json).toMatchObject({ ok: true, handoff_sent: true });
-    expect(d.calendar.events).toHaveLength(1);
+    expect(d.fakeCalendar!.events).toHaveLength(1);
     expect(d.fakeNotifier!.handoffs).toHaveLength(1);
     const text = JSON.stringify([slots.json, booked.json]);
     expect(text).not.toMatch(/TEST Designer|priya@example\.com|\+?\d{10}/);
@@ -67,7 +67,7 @@ describe("get_slots + book_slot end to end", () => {
     const a = await call("book_slot", { enquiry_id: fit.enquiry_id, start, idempotency_key: "call-1" }, d);
     const b = await call("book_slot", { enquiry_id: fit.enquiry_id, start, idempotency_key: "call-1" }, d);
     expect(b.json).toMatchObject({ ok: true, replayed: true, booking_id: a.json.booking_id });
-    expect(d.calendar.events).toHaveLength(1);
+    expect(d.fakeCalendar!.events).toHaveLength(1);
   });
 });
 
@@ -79,7 +79,7 @@ describe("guards at the tool boundary", () => {
       expect((await call("get_slots", { enquiry_id: fit.enquiry_id }, d)).json).toMatchObject({ ok: false, error: "not_bookable" });
       expect((await call("book_slot", { enquiry_id: fit.enquiry_id, start: "2026-10-08T05:30:00.000Z" }, d)).json).toMatchObject({ ok: false, error: "not_bookable" });
     }
-    expect(d.calendar.events).toHaveLength(0);
+    expect(d.fakeCalendar!.events).toHaveLength(0);
   });
   it("missing enquiry_id -> 400, unknown -> 404, bad date -> invalid_slot", async () => {
     expect((await call("get_slots", {}, d)).status).toBe(400);
@@ -96,7 +96,7 @@ describe("guards at the tool boundary", () => {
   it("calendar outage while booking -> ok:false with next_action request_human_review", async () => {
     const { json: fit } = await call("check_fit", T01, d);
     const start = (await call("get_slots", { enquiry_id: fit.enquiry_id }, d)).json.slots[0].start;
-    d.calendar.failNext("createEvent");
+    d.fakeCalendar!.failNext("createEvent");
     expect((await call("book_slot", { enquiry_id: fit.enquiry_id, start }, d)).json).toMatchObject({ ok: false, error: "calendar_unavailable", next_action: "request_human_review" });
   });
 });

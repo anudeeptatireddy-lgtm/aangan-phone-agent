@@ -9,6 +9,9 @@ import { FakeCrm } from "@/adapters/crm/fake";
 import { HubSpotCrm } from "@/adapters/crm/hubspot";
 import { FakeEmail } from "@/adapters/email/fake";
 import { ResendEmail } from "@/adapters/email/resend";
+import { GoogleCalendar } from "@/adapters/calendar/google";
+import { parseServiceAccount } from "@/adapters/calendar/service-account";
+import type { CalendarPort } from "@/core/ports";
 import { OutboxRunner } from "@/core/outbox/runner";
 import { BookingService } from "@/core/booking/service";
 import { DEFAULT_BOOKING_CONFIG, BookingConfig, Designer } from "@/core/booking/types";
@@ -40,7 +43,8 @@ export interface Deps {
   // Session 3: booking against ports. Fakes locally; the real Google Calendar / Telegram adapters replace them later.
   enquiries: InMemoryEnquiryStore;
   bookingRepo: InMemoryBookingRepo;
-  calendar: FakeCalendar;
+  calendar: CalendarPort;
+  fakeCalendar: FakeCalendar | undefined; // only when the in-memory fake is in use (dev/test)
   notifier: NotifierPort;
   fakeNotifier: FakeNotifier | undefined; // only when the in-memory fake is in use (dev/test)
   handoff: HandoffService;
@@ -71,7 +75,12 @@ export function makeDeps(o: { env?: Record<string, string | undefined>; now?: ()
   const now = o.now ?? (() => new Date());
   const hours = o.hours ?? DEFAULT_HOURS;
   const bookingRepo = new InMemoryBookingRepo(o.designers ?? TEST_DESIGNERS);
-  const calendar = new FakeCalendar();
+  // Calendar: real Google only with a service-account key; a fake outside production; in production without one every call fails, so booking
+  // answers "calendar unavailable" and the call goes to a human rather than promising a slot nobody checked.
+  let calendar: CalendarPort, fakeCalendar: FakeCalendar | undefined;
+  if (env.GOOGLE_SERVICE_ACCOUNT_JSON) calendar = new GoogleCalendar({ serviceAccount: parseServiceAccount(env.GOOGLE_SERVICE_ACCOUNT_JSON), impersonate: env.GOOGLE_IMPERSONATE_USER });
+  else if (env.NODE_ENV !== "production") calendar = fakeCalendar = new FakeCalendar();
+  else { const no = () => Promise.reject(new Error("Google Calendar is not configured (GOOGLE_SERVICE_ACCOUNT_JSON)")); calendar = { freeBusy: no, createEvent: no, deleteEvent: no }; }
   // Telegram: the real bot only when a token is configured; a recording fake otherwise (in production without a token every send fails loudly, so items wait in the outbox and the sweep reports them).
   let notifier: NotifierPort, fakeNotifier: FakeNotifier | undefined;
   if (env.TELEGRAM_BOT_TOKEN) notifier = new TelegramNotifier({ token: env.TELEGRAM_BOT_TOKEN });
@@ -103,7 +112,7 @@ export function makeDeps(o: { env?: Record<string, string | undefined>; now?: ()
   const alerts = new AlertDrainer({ repo: postcall, notifier,
     ownerChatId: env.OWNER_TELEGRAM_CHAT_ID ? Number(env.OWNER_TELEGRAM_CHAT_ID) : undefined, nikhilChatId: env.NIKHIL_TELEGRAM_CHAT_ID ? Number(env.NIKHIL_TELEGRAM_CHAT_ID) : undefined });
   return { env, repo: new InMemoryRepo(env.PHONE_HASH_PEPPER), now, hours, designerNames: o.designerNames ?? [],
-    enquiries, bookingRepo, calendar, notifier, fakeNotifier, handoff, crm, email, fakeCrm, fakeEmail, outbox, booking, postcall, extractor, fakeExtractor, pipeline, alerts };
+    enquiries, bookingRepo, calendar, fakeCalendar, notifier, fakeNotifier, handoff, crm, email, fakeCrm, fakeEmail, outbox, booking, postcall, extractor, fakeExtractor, pipeline, alerts };
 }
 
 // Process-wide singleton for the Next dev server (state is in-memory until Supabase lands).

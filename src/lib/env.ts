@@ -26,6 +26,12 @@ const Env = z.object({
   RESEND_API_KEY: z.string().optional(),
   RESEND_FROM: z.string().optional(),
   RESEND_REPLY_TO: z.string().optional(),
+  // Google Calendar: service-account key JSON (raw JSON or base64 of it). Share each designer's calendar with the service account's email.
+  // GOOGLE_IMPERSONATE_USER enables domain-wide delegation, which Google requires before a service account may invite attendees.
+  GOOGLE_SERVICE_ACCOUNT_JSON: z.string().optional(),
+  GOOGLE_IMPERSONATE_USER: z.string().email().optional(),
+  // Bearer/query token for the owner dashboard (Nikhil).
+  DASHBOARD_TOKEN: z.string().min(16).optional(),
   // Authenticates the scheduled tick (Vercel sends it as a bearer token).
   CRON_SECRET: z.string().min(16).optional(),
   // Live-transfer targets (E.164). Complaints -> design lead, falling back to front desk; "I want a person" -> front desk.
