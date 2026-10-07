@@ -5,6 +5,7 @@ import type {
 import { hashPhone, maskPhone } from "@/lib/phone";
 import { decryptPhone, encryptPhone } from "@/lib/phone-crypto";
 import type { SqlClient } from "./pg-booking-repo";
+import { SCOPE } from "./scope";
 
 const iso = (d: Date) => d.toISOString();
 const date = (v: unknown) => (v === null || v === undefined ? null : v instanceof Date ? v : new Date(String(v)));
@@ -175,7 +176,7 @@ export class PgPostCallRepo implements PostCallRepo {
     return rows.length > 0;
   }
   async pendingOutbox(kinds: OutboxKind[], limit: number): Promise<OutboxRow[]> {
-    const { rows } = await this.db.query("select id, kind, payload, dedupe_key, status, attempts from outbox where status='pending' and kind = any($1::text[]) order by created_at, id limit $2", [kinds, limit]);
+    const { rows } = await this.db.query(`select id, kind, payload, dedupe_key, status, attempts from outbox where status='pending' and is_demo = ${SCOPE} and kind = any($1::text[]) order by created_at, id limit $2`, [kinds, limit]);
     return rows.map((r) => ({ id: r.id as string, kind: r.kind as OutboxKind, payload: jsonOf(r.payload) as Record<string, unknown>, dedupeKey: r.dedupe_key as string, status: r.status as OutboxRow["status"], attempts: Number(r.attempts) }));
   }
   async markOutbox(id: string, status: "processed" | "failed" | "pending", error?: string) {

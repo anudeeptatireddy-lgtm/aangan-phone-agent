@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { makeDeps, Deps } from "@/server/deps";
+import { makeDeps, MemoryDeps as Deps } from "@/server/deps";
 import { handleTelegramWebhook } from "@/server/handlers/telegram-webhook";
 
 const SECRET = "tg-secret-0123456789";

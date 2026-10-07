@@ -1,4 +1,5 @@
 import type { BookingRepo, HoldResult, NewHold } from "@/core/booking/repo";
+import { SCOPE } from "./scope";
 import type { Booking, BookingStatus, Designer, HandoffRecord, HandoffStatus, Interval } from "@/core/booking/types";
 
 /** Anything with a node-postgres-shaped `query` (pg.Client, pg.Pool, PGlite). */
@@ -40,7 +41,7 @@ export class PgBookingRepo implements BookingRepo {
   constructor(private db: SqlClient) {}
 
   async listActiveDesigners(): Promise<Designer[]> {
-    const { rows } = await this.db.query(`${DESIGNER_COLS} where active = true order by name`);
+    const { rows } = await this.db.query(`${DESIGNER_COLS} where active = true and is_demo = ${SCOPE} order by name`);
     return rows.map(designerOf);
   }
   async getDesigner(id: string): Promise<Designer | null> {

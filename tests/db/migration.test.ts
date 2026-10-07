@@ -3,7 +3,7 @@ import type { PGlite } from "@electric-sql/pglite";
 import { freshDb } from "./helpers";
 
 const TABLES = ["approved_texts", "audit_flags", "bookings", "calcom_bookings", "call_reviews", "callers", "calls", "crm_links", "dashboard_users", "designers",
-  "enquiries", "escalations", "festival_dates", "handoffs", "outbox", "rule_evaluations", "rule_versions", "studio_hours", "usage_costs", "vip_referrers", "webhook_events"];
+  "enquiries", "escalations", "festival_dates", "handoffs", "outbox", "phone_reveals", "rule_evaluations", "rule_versions", "studio_hours", "usage_costs", "vip_referrers", "webhook_events"];
 
 let db: PGlite;
 beforeAll(async () => { db = await freshDb({ seed: true }); }, 60_000);
@@ -65,7 +65,7 @@ describe("schema v2 meets the owner's approval conditions", () => {
     const bad = c.filter((r) => /price|quote|per_?sq|sqft_rate|rate_per/i.test(r.column_name));
     expect(bad).toEqual([]);
     const money = c.filter((r) => /_inr$|budget|amount|cost|fx_/i.test(r.column_name)).map((r) => `${r.table_name}.${r.column_name}`).sort();
-    expect(money).toEqual(["calls.cost_ai_inr", "calls.cost_total_inr", "calls.cost_voice_inr", "enquiries.caller_budget_inr", "usage_costs.amount_inr", "usage_costs.fx_inr_per_usd", "usage_costs.unit_cost"]);
+    expect(money).toEqual(["calls.cost_ai_inr", "calls.cost_total_inr", "calls.cost_voice_inr", "crm_links.deal_amount_inr", "enquiries.caller_budget_inr", "usage_costs.amount_inr", "usage_costs.fx_inr_per_usd", "usage_costs.unit_cost"]);
   });
 });
 
@@ -148,5 +148,32 @@ describe("integrity rules", () => {
     for (const mode of ["live_transfer", "callback_sla", "callback_promised", "queued_review", "offer_choice", "continue_booking"])
       await db.query("insert into escalations(call_id, reason, mode) values ($1,'complaint',$2)", [callId, mode]);
     await expect(db.query("insert into escalations(call_id, reason, mode) values ($1,'complaint','nonsense')", [callId])).rejects.toThrow(/check constraint/i);
+  });
+});
+
+describe("dashboard additions (migration 0005)", () => {
+  it("every row-holding table has a demo marker that defaults to false for real traffic and true under app.demo", async () => {
+    const c = await rows<{ table_name: string }>("select table_name from information_schema.columns where table_schema='public' and column_name='is_demo' order by 1");
+    expect(c.map((r) => r.table_name)).toEqual(["audit_flags", "bookings", "calcom_bookings", "call_reviews", "callers", "calls", "crm_links", "designers", "enquiries", "escalations", "handoffs", "outbox", "phone_reveals", "rule_evaluations", "usage_costs"]);
+    await db.query("insert into calls(vaani_call_id) values ('real-1')");
+    await db.query("select set_config('app.demo','on',false)");
+    await db.query("insert into calls(vaani_call_id) values ('demo-1')");
+    await db.query("select set_config('app.demo','off',false)");
+    await db.query("insert into calls(vaani_call_id) values ('real-2')");
+    const r = await rows<{ vaani_call_id: string; is_demo: boolean }>("select vaani_call_id, is_demo from calls where vaani_call_id in ('real-1','demo-1','real-2') order by 1");
+    expect(r).toEqual([{ vaani_call_id: "demo-1", is_demo: true }, { vaani_call_id: "real-1", is_demo: false }, { vaani_call_id: "real-2", is_demo: false }]);
+  });
+  it("crm stage is a closed vocabulary", async () => {
+    await expect(db.query("insert into crm_links(stage) values ('negotiating')")).rejects.toThrow(/check constraint/i);
+    await db.query("insert into crm_links(stage, deal_amount_inr) values ('won', 1200000)");
+  });
+  it("the HubSpot deal amount is referenced by NOTHING that talks to a caller, a model, a log or a message (hard rule 1)", async () => {
+    const { execSync } = await import("node:child_process");
+    const hits = execSync("grep -rl 'deal_amount_inr\\|dealAmountInr' src || true").toString().split("\n").filter(Boolean);
+    for (const f of hits) expect(f, f).toMatch(/^src\/(db|core\/dashboard|server\/handlers\/dashboard|app\/dashboard|app\/api\/dashboard)/);
+  });
+  it("phone reveals are logged in a table only the service role can touch", async () => {
+    const g = await rows("select 1 from information_schema.role_table_grants where table_name='phone_reveals' and grantee in ('anon','authenticated')");
+    expect(g).toEqual([]);
   });
 });

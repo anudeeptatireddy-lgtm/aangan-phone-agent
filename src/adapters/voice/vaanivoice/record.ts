@@ -21,6 +21,7 @@ export function buildCallRecord(i: { callId: string; details: VaaniCallDetails; 
     rangAt: started, answeredAt: started, endedAt: ended, durationS,
     endedReason: turns.some((t) => t.speaker === "caller") ? "completed" : "dropped",
     transcript: turns, recordingRef: h?.recording_api, vendorSummary: i.details.summary || undefined,
+    voiceRateInrPerMin: durationS !== undefined ? i.ratePerMinInr : undefined,
     // The vendor's cost field ("credits") has no documented unit, so this is an ESTIMATE from the dashboard's per-minute rate.
     voiceCostInr: durationS !== undefined && i.ratePerMinInr !== undefined ? Math.round((durationS / 60) * i.ratePerMinInr * 100) / 100 : undefined,
     vendorEntities: i.details.entity,

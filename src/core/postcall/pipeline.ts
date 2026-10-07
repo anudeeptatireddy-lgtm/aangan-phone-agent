@@ -7,7 +7,7 @@ import { RULES_V1 } from "../rules/config.v1";
 import type { RuleConfig } from "../rules/config";
 import { checkFit } from "../rules/engine";
 import { scanForMissedComplaint } from "./complaint-scan";
-import { computeAiCost } from "./costs";
+import { computeAiCost, voiceCostRow } from "./costs";
 import { checkDisclosure } from "./disclosure";
 import { buildExtractionRequest, emptyExtraction, Extraction, ExtractionPort, FitMapping, toFitInput } from "./extraction";
 import { planEscalation } from "../escalation";
@@ -121,7 +121,10 @@ export class PostCallPipeline {
     // ---- cost ----
     const cost = result.usage && result.model ? computeAiCost(result.usage, result.model) : { rows: [], totalInr: 0 };
     if (cost.rows.length) await repo.addUsageCosts(id, cost.rows, now);
-    if (rec.voiceCostInr !== undefined) await repo.upsertCall(id, { costVoiceInr: rec.voiceCostInr });
+    if (rec.voiceCostInr !== undefined) {
+      await repo.upsertCall(id, { costVoiceInr: rec.voiceCostInr });
+      if (rec.durationS && rec.voiceRateInrPerMin) await repo.addUsageCosts(id, [voiceCostRow(rec.durationS, rec.voiceRateInrPerMin)], now); // the ledger the dashboard's cost panel reads
+    }
 
     const e = this.d.refine ? this.d.refine(result.data, rec) : result.data;
     const mapping = toFitInput(e, startedAt);

@@ -1,5 +1,10 @@
 # Next session
 
+## CEO dashboard session (2026-10-07), latest
+**Built:** Postgres wiring (`makeDeps({ db })`, `src/db/open.ts`: `DATABASE_URL` = Postgres, `LOCAL_DB_DIR` = local PGlite with migrations + seed applied on first use), migration 0005 (demo marker, funnel stages, deal value, phone-reveal log), every metric in SQL (`src/db/dash-metrics.ts`, `dash-calls.ts`), API under `/api/dashboard/*` (login-gated, date range, live/demo), five pages (Overview, Calls + CSV, Call detail, Designers, Weekly review), `pnpm seed:demo` / `seed:demo:reset`, screenshots in `docs/screenshots/`. 953 tests passing, 12 skipped.
+**Open locally:** stop other dev servers, `npx next dev -p 3000` (or `corepack pnpm dev`), open http://localhost:3000/dashboard, the login token is `DASHBOARD_TOKEN` in `.env.local` (generated for this machine), then press **Demo**. Only one process may hold `data/local/pglite` at a time: stop `next dev` before `seed:demo`.
+**Still missing for live data:** (1) `DATABASE_URL` for Supabase (the migrations apply with `supabase db push`; `PHONE_ENC_KEY` is required with any database). (2) Nothing sets `bookings.status = attended` or a HubSpot stage past `new`, so stages 8-10, designers' consultations/quotes/wins and the pipeline value show "no data yet" until a HubSpot sync exists (needs the real pipeline and stage ids). (3) Fixed fees (phone number, hosting) have no entry screen: insert `usage_costs` rows with `source = 'manual_fixed'`. (4) Nobody marks a complaint escalation resolved, so "closed within 15 minutes" shows "no data yet". (5) One shared login: reviewer names and reveal logs are self-declared / anonymous. (6) The webhook inbox (`deps.repo.recordWebhookEvent`) and the live-tools stores are still in memory. (7) `pg` and `@electric-sql/pglite` are devDependencies; move them to dependencies in the same change that updates the lockfile (blocked today by the pnpm release-age policy).
+
 Updated 2026-10-07 (end of the Vaani -> pipeline wiring session).
 
 ## Done so far (this project, local on the owner's Mac; GitHub private is the remote)
@@ -34,5 +39,5 @@ Real designer rows: the design lead must have a Telegram chat id, or design-lead
 - Nikhil production sign-off on rules v1 is still pending (`docs/decisions-v1.md`).
 - Delete `~/aangan-voice-agent.bundle` (owner said they will).
 
-## Next plan item
+## Next plan item (superseded by the dashboard session above for now)
 Session 7 replay harness (20 phone transcripts + 10 hard cases, fails if the agent says a price-related number), then the Postgres wiring (gap 1) and the history-reconcile tick step (gap 2).

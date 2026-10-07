@@ -18,6 +18,7 @@ const Env = z.object({
   // HubSpot (deal per qualified enquiry). Pipeline and stage ids are read from the account, never guessed.
   HUBSPOT_ACCESS_TOKEN: z.string().optional(),
   HUBSPOT_PIPELINE_ID: z.string().optional(),
+  HUBSPOT_PORTAL_ID: z.string().regex(/^\d+$/).optional(), // only to turn a deal id into a link on the dashboard
   HUBSPOT_DEAL_STAGE_ID: z.string().optional(),
   // Resend (caller confirmation email). The from-address must be on a domain verified in Resend.
   RESEND_API_KEY: z.string().optional(),
@@ -27,6 +28,9 @@ const Env = z.object({
   // GOOGLE_IMPERSONATE_USER enables domain-wide delegation, which Google requires before a service account may invite attendees.
   GOOGLE_SERVICE_ACCOUNT_JSON: z.string().optional(),
   GOOGLE_IMPERSONATE_USER: z.string().email().optional(),
+  // Storage. DATABASE_URL = Postgres (Supabase later); LOCAL_DB_DIR = local PGlite directory (migrations + seed applied on first use). Neither = in-memory (tests).
+  DATABASE_URL: z.string().url().optional(),
+  LOCAL_DB_DIR: z.string().min(1).optional(),
   // Bearer/query token for the owner dashboard (Nikhil).
   DASHBOARD_TOKEN: z.string().min(16).optional(),
   // vaanivoice.ai (Vaani AI Research): API key for call_details/call-history, the secret path segment of our webhook URL, and the dashboard's

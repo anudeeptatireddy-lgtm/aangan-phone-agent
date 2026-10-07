@@ -1,5 +1,6 @@
 import type { CalBooking, CalBookingStore, CalStatus } from "@/core/calcom/types";
 import type { SqlClient } from "./pg-booking-repo";
+import { SCOPE } from "./scope";
 
 const date = (v: unknown) => (v instanceof Date ? v : new Date(String(v)));
 const of = (r: Record<string, unknown>): CalBooking => ({
@@ -20,7 +21,7 @@ export class PgCalBookingStore implements CalBookingStore {
   }
   async get(uid: string) { const { rows } = await this.db.query("select * from calcom_bookings where uid=$1", [uid]); return rows[0] ? of(rows[0]) : null; }
   async findUnclaimed(from: Date, to: Date) {
-    const { rows } = await this.db.query("select * from calcom_bookings where status='accepted' and claimed_by_call is null and created_at >= $1::timestamptz and created_at <= $2::timestamptz order by created_at", [from.toISOString(), to.toISOString()]);
+    const { rows } = await this.db.query(`select * from calcom_bookings where status='accepted' and claimed_by_call is null and is_demo = ${SCOPE} and created_at >= $1::timestamptz and created_at <= $2::timestamptz order by created_at`, [from.toISOString(), to.toISOString()]);
     return rows.map(of);
   }
   async claim(uid: string, vendorCallId: string) {

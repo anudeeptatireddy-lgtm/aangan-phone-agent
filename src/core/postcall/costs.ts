@@ -1,14 +1,20 @@
 import { FX_INR_PER_USD, GEMINI_PRICING } from "@/config/models";
 
+/** Voice minutes for one call, priced at the dashboard's per-minute rate. An ESTIMATE: the vendor's own cost field has no documented unit. */
+export function voiceCostRow(durationS: number, ratePerMinInr: number): CostRow {
+  const minutes = Math.round((durationS / 60) * 100) / 100;
+  return { line: "voice_minutes", provider: "vaanivoice", quantity: minutes, unit: "minute", unitCost: ratePerMinInr, currency: "INR", fxInrPerUsd: null, amountInr: Math.round(minutes * ratePerMinInr * 100) / 100, source: "computed" };
+}
+
 export interface TokenUsage { inputTokens: number; outputTokens: number; thoughtTokens: number }
 export interface CostRow {
-  line: "ai_tokens_in" | "ai_tokens_out";
-  provider: "gemini";
+  line: "ai_tokens_in" | "ai_tokens_out" | "voice_minutes";
+  provider: "gemini" | "vaanivoice";
   quantity: number;
-  unit: "token";
-  unitCost: number;            // USD per token
-  currency: "USD";
-  fxInrPerUsd: number;
+  unit: "token" | "minute";
+  unitCost: number;            // per unit, in `currency`
+  currency: "USD" | "INR";
+  fxInrPerUsd: number | null;
   amountInr: number;
   source: "computed";
 }

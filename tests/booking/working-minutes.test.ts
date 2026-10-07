@@ -30,3 +30,17 @@ describe("addWorkingMinutes (Mon-Fri 10:00-19:00 IST)", () => {
     expect(iso(addWorkingMinutes(ist("2026-10-07T12:00:00"), 0))).toBe(iso(ist("2026-10-07T12:00:00")));
   });
 });
+
+import { workingMinutesBetween } from "@/core/booking/working-minutes";
+describe("workingMinutesBetween", () => {
+  const ist = (s: string) => new Date(`${s}+05:30`);
+  it("counts only working time: inside a day, across an evening, across a weekend", () => {
+    expect(workingMinutesBetween(ist("2026-10-07T10:30:00"), ist("2026-10-07T10:50:00"))).toBe(20);
+    expect(workingMinutesBetween(ist("2026-10-07T18:50:00"), ist("2026-10-08T10:20:00"))).toBe(30); // 10 min today + 20 min tomorrow
+    expect(workingMinutesBetween(ist("2026-10-09T18:45:00"), ist("2026-10-12T10:15:00"))).toBe(30); // Fri evening -> Mon morning
+  });
+  it("time before opening or after closing counts as zero, and a reversed pair is zero", () => {
+    expect(workingMinutesBetween(ist("2026-10-07T07:00:00"), ist("2026-10-07T09:00:00"))).toBe(0);
+    expect(workingMinutesBetween(ist("2026-10-07T12:00:00"), ist("2026-10-07T11:00:00"))).toBe(0);
+  });
+});

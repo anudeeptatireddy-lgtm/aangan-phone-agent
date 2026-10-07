@@ -1,2 +1,3 @@
 /** @type {import('next').NextConfig} */
-export default { reactStrictMode: true };
+// pg and PGlite are loaded at runtime by the Node server; they must not be bundled.
+export default { reactStrictMode: true, serverExternalPackages: ["pg", "@electric-sql/pglite"] };

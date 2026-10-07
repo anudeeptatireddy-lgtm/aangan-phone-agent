@@ -1,72 +1,112 @@
-import { cookies } from "next/headers";
-import { dashboardAuthorized, summaryFor } from "@/server/handlers/dashboard";
-import { getDeps } from "@/server/deps";
+import { dashContext, type SP } from "./context";
+import { overview } from "@/db/dash-metrics";
+import { Card, DailyChart, FunnelChart, HBars, HourChart, LoginScreen, Message, Shell, Tile, inr, inrShort, label, mins, pct } from "./ui";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Aangan phone agent: overview" };
 
-const inr = (n: number) => `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
-const pct = (n: number) => `${Math.round(n * 100)}%`;
-const LABEL: Record<string, string> = { booked: "Booked", escalated: "Sent to a person", not_fit: "Not a fit", review: "Needs review", dropped: "Dropped", unprocessed: "Not yet processed" };
+export default async function Overview({ searchParams }: { searchParams: Promise<SP> }) {
+  const ctx = await dashContext(await searchParams);
+  if (ctx.state === "unconfigured") return <Message title="Dashboard" body="Not configured: set DASHBOARD_TOKEN." />;
+  if (ctx.state === "login") return <LoginScreen error={ctx.error} />;
+  if (ctx.state === "nodb") return <Message title="Dashboard" body="No database is configured. Set LOCAL_DB_DIR (local) or DATABASE_URL (Supabase); the dashboard reads Postgres only." />;
+  const o = await overview(ctx.db, ctx.q);
+  const k = o.kpis, sp = o.speed, c = o.cost;
+  const leak = k.priceLeaks > 0;
+  const outcomeRows = [
+    { key: "fit", count: o.outcomes.fit }, { key: "not_fit", count: o.outcomes.notFit.total }, { key: "unclear", count: o.outcomes.unclear },
+    { key: "complaint", count: o.outcomes.complaint }, { key: "other", count: o.outcomes.other }, { key: "missed", count: o.outcomes.missed }, { key: "dropped", count: o.outcomes.dropped }].filter((r) => r.count > 0);
 
-export default async function Dashboard({ searchParams }: { searchParams: Promise<{ days?: string; error?: string }> }) {
-  const deps = getDeps();
-  const sp = await searchParams;
-  const token = deps.env.DASHBOARD_TOKEN;
-  const jar = await cookies();
-  const authed = !!token && dashboardAuthorized(new Request("http://x", { headers: { cookie: `dash=${jar.get("dash")?.value ?? ""}` } }), token);
-
-  if (!token) return <main style={page}><h1>Dashboard</h1><p>Not configured: set DASHBOARD_TOKEN.</p></main>;
-  if (!authed) return (
-    <main style={page}>
-      <h1>Aangan phone agent</h1>
-      <form method="post" action="/api/dashboard/login" style={{ display: "flex", gap: 8 }}>
-        <input name="token" type="password" placeholder="Dashboard token" autoComplete="current-password" style={{ padding: 8, flex: 1 }} />
-        <button type="submit" style={{ padding: "8px 16px" }}>Open</button>
-      </form>
-      {sp.error && <p style={{ color: "#b00020" }}>That token did not match.</p>}
-    </main>
-  );
-
-  const days = [7, 30, 90].includes(Number(sp.days)) ? Number(sp.days) : 30;
-  const s = await summaryFor(deps, days);
-  const maxCalls = Math.max(1, ...s.daily.map((d) => d.calls));
   return (
-    <main style={page}>
-      <h1>Aangan phone agent</h1>
-      <p>{[7, 30, 90].map((d) => <a key={d} href={`/dashboard?days=${d}`} style={{ marginRight: 12, fontWeight: d === days ? 700 : 400 }}>Last {d} days</a>)}</p>
-
-      <section style={grid}>
-        <Stat label="Calls" value={String(s.totals.calls)} sub={`${s.totals.afterHours} after hours`} />
-        <Stat label="Booked" value={String(s.outcomes.booked)} sub={`${pct(s.rates.booked)} of calls`} />
-        <Stat label="Total cost" value={inr(s.cost.totalInr)} sub={`${inr(s.cost.perCallInr)} per call`} />
-        <Stat label="Cost per booking" value={s.cost.perBookingInr === null ? "n/a" : inr(s.cost.perBookingInr)} sub={`${s.totals.totalMinutes} minutes talked`} />
-      </section>
-      {s.cost.unpricedCalls ? <p style={warn}>{s.cost.unpricedCalls} call(s) have no cost recorded yet, so the totals are understated.</p> : null}
-      {(s.attention.extractionFailed > 0 || Object.keys(s.attention.openFlags).length > 0) && (
-        <p style={warn}>Needs attention: {s.attention.extractionFailed ? `${s.attention.extractionFailed} call(s) not processed; ` : ""}{Object.entries(s.attention.openFlags).map(([k, v]) => `${k.replace(/_/g, " ")}: ${v}`).join(", ")}</p>
-      )}
-
-      <h2>What happened to the calls</h2>
-      <table style={table}><tbody>{Object.entries(s.outcomes).filter(([, v]) => v > 0).map(([k, v]) => <tr key={k}><td>{LABEL[k] ?? k}</td><td style={num}>{v}</td></tr>)}</tbody></table>
-
-      <h2>Designer handoffs</h2>
-      <table style={table}><tbody>{Object.entries(s.handoffs).filter(([, v]) => v > 0).map(([k, v]) => <tr key={k}><td>{k.replace("_", " ")}</td><td style={num}>{v}</td></tr>)}
-        <tr><td><b>Accepted</b></td><td style={num}><b>{pct(s.rates.handoffAccepted)}</b></td></tr></tbody></table>
-
-      <h2>Calls per day</h2>
-      <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 100 }} role="img" aria-label="Calls per day">
-        {s.daily.map((d) => <div key={d.date} title={`${d.date}: ${d.calls} calls, ${d.booked} booked, ${inr(d.costInr)}`} style={{ flex: 1, minWidth: 2, height: `${(d.calls / maxCalls) * 100}%`, background: d.calls ? "#2d6a4f" : "#ddd" }} />)}
+    <Shell ctx={ctx} page="overview" path="/dashboard" title="Aangan phone agent">
+      <div className="grid" aria-label="Key numbers">
+        <Tile k="Calls" v={String(k.calls)} s={`${o.breakdowns.afterHoursShare == null ? "0" : pct(o.breakdowns.afterHoursShare)} after hours`} />
+        <Tile k="Qualified" v={String(k.qualified)} s="fit under the rules" />
+        <Tile k="Booked" v={String(k.booked)} s="on the call" tone="good" />
+        <Tile k="Pushed" v={String(k.pushed)} s="to a designer" />
+        <Tile k="Quoted" v={String(k.quoted)} nodata={k.quoted === null} s="by the designer" />
+        <Tile k="Won" v={String(k.won)} nodata={k.won === null} s="deals" />
+        <Tile k="Cost per booked consultation" v={k.costPerBookedInr == null ? "n/a" : inr(k.costPerBookedInr)} s={`${inr(c.totalInr)} total`} />
+        <Tile k="Price leaks" v={String(k.priceLeaks)} tone={leak ? "bad" : "good"} s={leak ? "the agent said a price: open the calls" : "target 0"} />
       </div>
-      <p style={{ color: "#666", fontSize: 13 }}>Counts only. No caller names, numbers or emails are shown here.</p>
-    </main>
+
+      <div className="sec"><Card title="From call to won">
+        <FunnelChart stages={o.funnel.stages} />
+        <p className="muted small">The percentage on the right is each step as a share of the step above it. Calls and answered are counted in calls; every later step in enquiries that came from those calls. {o.funnel.stages.some((s) => !s.hasData) && "Steps marked no data yet have no source until designers' consultations and quotes reach HubSpot."}</p>
+      </Card></div>
+
+      <div className="sec grid2">
+        <Card title="Calls per day"><DailyChart days={o.daily} /></Card>
+        <Card title="What happened to the calls">
+          <HBars rows={outcomeRows.map((r) => ({ key: r.key, count: r.count }))} empty="No calls in this period." />
+          {o.outcomes.notFit.byReason.length > 0 && <><h3>Not a fit, by reason</h3><HBars rows={o.outcomes.notFit.byReason.map((r) => ({ key: r.reason, count: r.count }))} /></>}
+        </Card>
+      </div>
+
+      <div className="sec grid2">
+        <Card title="Cost of running the agent">
+          <table className="tbl"><tbody>
+            {c.byLine.map((l) => <tr key={l.line}><td>{l.label}</td><td className="right">{inr(l.amountInr)}</td></tr>)}
+            {c.byLine.length === 0 && <tr><td className="muted">No spend recorded in this period.</td><td /></tr>}
+            <tr><td><b>Total</b></td><td className="right"><b>{inr(c.totalInr)}</b></td></tr>
+            <tr><td>Per call</td><td className="right">{inr(c.perCallInr)}</td></tr>
+            <tr><td>Per booked consultation</td><td className="right">{inr(c.perBookedConsultationInr)}</td></tr>
+          </tbody></table>
+          <p className="muted small">Voice minutes are an estimate at the dashboard rate. Fixed fees (phone number, hosting) are entered by hand.</p>
+        </Card>
+        <Card title="Speed">
+          <table className="tbl"><tbody>
+            <tr><td>Median time to answer</td><td className="right">{sp.medianAnswerSeconds == null ? "n/a" : `${sp.medianAnswerSeconds} s`}</td></tr>
+            <tr><td>Answered within an hour</td><td className="right">{pct(sp.pctAnsweredUnder1h)}</td></tr>
+            <tr><td>Median hand-off to designer accept</td><td className="right">{mins(sp.medianAcceptWorkingMinutes)} <span className="muted small">working</span></td></tr>
+            <tr><td className="muted small">same, wall-clock</td><td className="right muted small">{mins(sp.medianAcceptMinutes)}</td></tr>
+          </tbody></table>
+        </Card>
+      </div>
+
+      <div className="sec grid2">
+        <Card title="Price">
+          <table className="tbl"><tbody>
+            <tr><td>Callers who asked about price</td><td className="right">{o.price.askedCount}</td></tr>
+            <tr><td>Agent price mentions <span className="muted small">(target 0)</span></td><td className="right" style={{ color: leak ? "var(--red)" : undefined, fontWeight: 700 }}>{o.price.agentPriceFlags}</td></tr>
+          </tbody></table>
+        </Card>
+        <Card title="Escalations">
+          <table className="tbl"><tbody>
+            <tr><td>Complaints</td><td className="right">{o.escalations.complaints}</td></tr>
+            <tr><td>Closed within 15 minutes</td><td className="right">{o.escalations.hasResolutionData ? pct(o.escalations.pctClosedWithin15Min) : <span className="nodata">no data yet</span>}</td></tr>
+          </tbody></table>
+        </Card>
+      </div>
+
+      <div className="sec grid2">
+        <Card title="Booking router health">
+          <table className="tbl"><tbody>
+            <tr><td>Bookings matched to a call</td><td className="right">{o.router.matched}</td></tr>
+            <tr><td>Ambiguous (a person links it)</td><td className="right">{o.router.ambiguous}</td></tr>
+            <tr><td>Agent said booked, no booking found</td><td className="right" style={{ color: o.router.claimedButNoBooking ? "var(--red)" : undefined, fontWeight: o.router.claimedButNoBooking ? 700 : 400 }}>{o.router.claimedButNoBooking}</td></tr>
+            <tr><td>Booking with no call</td><td className="right">{o.router.bookingWithoutCall}</td></tr>
+          </tbody></table>
+        </Card>
+        <Card title="Pipeline from agent-sourced calls">
+          {o.pipeline.hasData ? (
+            <table className="tbl"><tbody>
+              <tr><td>Won ({o.pipeline.wonCount})</td><td className="right">{inrShort(o.pipeline.wonValueInr)}</td></tr>
+              <tr><td>Quoted, open ({o.pipeline.quotedCount})</td><td className="right">{inrShort(o.pipeline.quotedValueInr)}</td></tr>
+              <tr><td><b>Total</b></td><td className="right"><b>{inrShort(o.pipeline.totalValueInr)}</b></td></tr>
+            </tbody></table>
+          ) : <p className="nodata">No deal values have reached HubSpot yet.</p>}
+          <p className="muted small">Deal values are what the designers enter in HubSpot. The agent never sees or says them.</p>
+        </Card>
+      </div>
+
+      <div className="sec grid2">
+        <Card title="By locality"><HBars rows={o.breakdowns.locality.map((r) => ({ key: r.key, count: r.count, extra: `${r.booked} booked` }))} /></Card>
+        <Card title="By project type"><HBars rows={o.breakdowns.projectType.map((r) => ({ key: r.key, count: r.count, extra: `${r.booked} booked` }))} /></Card>
+        <Card title="By designer (bookings)"><HBars rows={o.breakdowns.designer} /></Card>
+        <Card title="By language"><HBars rows={o.breakdowns.language.map((r) => ({ key: r.key === "en" ? "English" : r.key === "hi" ? "Hindi" : r.key === "mr" ? "Marathi" : label(r.key), count: r.count }))} /></Card>
+      </div>
+      <div className="sec"><Card title={`By hour of day (IST), ${o.breakdowns.afterHoursShare == null ? "no" : pct(o.breakdowns.afterHoursShare)} after hours`}><HourChart hours={o.breakdowns.hourOfDay} /></Card></div>
+    </Shell>
   );
 }
-
-function Stat({ label, value, sub }: { label: string; value: string; sub: string }) {
-  return <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12 }}><div style={{ color: "#666", fontSize: 13 }}>{label}</div><div style={{ fontSize: 28, fontWeight: 700 }}>{value}</div><div style={{ color: "#666", fontSize: 13 }}>{sub}</div></div>;
-}
-const page = { fontFamily: "system-ui", padding: 24, maxWidth: 860, margin: "0 auto" } as const;
-const grid = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 } as const;
-const table = { borderCollapse: "collapse", width: "100%" } as const;
-const num = { textAlign: "right" } as const;
-const warn = { background: "#fff3cd", padding: 10, borderRadius: 6 } as const;

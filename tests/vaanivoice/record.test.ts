@@ -11,6 +11,7 @@ describe("buildCallRecord", () => {
     expect(r).toMatchObject({ vendor: "vaanivoice", vendorCallId: "c1", callerPhone: "+919876543210", rangAt: "2026-10-07T05:00:00.000Z", endedAt: "2026-10-07T05:05:00.000Z", durationS: 300,
       endedReason: "completed", recordingRef: "https://api.vaanivoice.ai/api/stream/c1", vendorSummary: "A 3BHK enquiry." });
     expect(r.transcript).toHaveLength(3);
+    expect(r.voiceRateInrPerMin).toBe(5.31);
     expect(r.voiceCostInr).toBe(26.55);                                    // 5 min x 5.31
     expect(r.signals).toEqual({ wantsPerson: false, claimedBooking: true, claimedBookingTime: "Thursday 11 am" });
   });

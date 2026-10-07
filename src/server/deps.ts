@@ -15,6 +15,14 @@ import { parseServiceAccount } from "@/adapters/calendar/service-account";
 import type { CalendarPort } from "@/core/ports";
 import type { DashboardSource } from "@/core/dashboard/source";
 import { InMemoryDashboardSource } from "./dashboard-source";
+import type { SqlClient } from "@/db/pg-booking-repo";
+import { PgBookingRepo } from "@/db/pg-booking-repo";
+import { PgPostCallRepo } from "@/db/pg-postcall-repo";
+import { PgCalBookingStore } from "@/db/pg-calcom-store";
+import { PgDashboardSource } from "@/db/pg-dashboard-source";
+import { openDb } from "@/db/open";
+import type { BookingRepo } from "@/core/booking/repo";
+import type { PostCallRepo } from "@/core/postcall/repo";
 import type { CalBookingStore } from "@/core/calcom/types";
 import { InMemoryCalBookingStore } from "./calcom-store";
 import { CallRouter, toEnquiryRecord } from "@/core/calcom/router";
@@ -51,7 +59,7 @@ export interface Deps {
   designerNames: string[]; // from designers table once it exists
   // Session 3: booking against ports. Fakes locally; the real Google Calendar / Telegram adapters replace them later.
   enquiries: InMemoryEnquiryStore;
-  bookingRepo: InMemoryBookingRepo;
+  bookingRepo: BookingRepo;
   calendar: CalendarPort;
   fakeCalendar: FakeCalendar | undefined; // only when the in-memory fake is in use (dev/test)
   notifier: NotifierPort;
@@ -69,12 +77,17 @@ export interface Deps {
   fakeVaaniVoice: FakeVaaniVoiceClient | undefined; // only when the in-memory fake is in use (dev/test)
   booking: BookingService;
   // Session 4: post-call pipeline
-  postcall: InMemoryPostCallRepo;
+  postcall: PostCallRepo;
+  /** Set when the stores are Postgres (DATABASE_URL, LOCAL_DB_DIR, or an injected client). The CEO dashboard reads only from here. */
+  db: SqlClient | undefined;
   extractor: ExtractionPort | undefined;
   fakeExtractor: FakeExtractor | undefined; // only when the scripted fake is in use (dev/test)
   pipeline: PostCallPipeline | undefined;
   alerts: AlertDrainer;
 }
+
+/** What `makeDeps()` returns without a database: the concrete in-memory stores, for tests and the local simulator. */
+export interface MemoryDeps extends Deps { bookingRepo: InMemoryBookingRepo; postcall: InMemoryPostCallRepo; calStore: InMemoryCalBookingStore; db: undefined }
 
 /** Clearly marked TEST designers (one principal, one design lead), as seeded in supabase/seed.sql. */
 export const TEST_DESIGNERS: Designer[] = [
@@ -83,12 +96,18 @@ export const TEST_DESIGNERS: Designer[] = [
   { id: "test-c", name: "TEST Designer C", areas: [], projectTypes: ["home", "office"], calendarId: "fake-cal-c", telegramChatId: 1003, isPrincipal: false, isDesignLead: false, active: true, lastAssignedAt: null, maxPerDay: null },
 ];
 
-export function makeDeps(o: { env?: Record<string, string | undefined>; now?: () => Date; hours?: HoursConfig; designerNames?: string[];
-  designers?: Designer[]; bookingConfig?: BookingConfig; pipelineMode?: "live_tools" | "prompt_only" } = {}): Deps {
+export interface MakeDepsOptions { env?: Record<string, string | undefined>; now?: () => Date; hours?: HoursConfig; designerNames?: string[];
+  designers?: Designer[]; bookingConfig?: BookingConfig; pipelineMode?: "live_tools" | "prompt_only"; db?: SqlClient }
+
+export function makeDeps(o?: Omit<MakeDepsOptions, "db">): MemoryDeps;
+export function makeDeps(o: MakeDepsOptions & { db: SqlClient }): Deps;
+export function makeDeps(o: MakeDepsOptions = {}): Deps {
   const env = getEnv(o.env ?? process.env);
   const now = o.now ?? (() => new Date());
   const hours = o.hours ?? DEFAULT_HOURS;
-  const bookingRepo = new InMemoryBookingRepo(o.designers ?? TEST_DESIGNERS);
+  const db = o.db;
+  // Postgres when a database client is given; the designers then come from the `designers` table (seeded), never from TEST_DESIGNERS.
+  const bookingRepo: BookingRepo = db ? new PgBookingRepo(db) : new InMemoryBookingRepo(o.designers ?? TEST_DESIGNERS);
   // Calendar: real Google only with a service-account key; a fake outside production; in production without one every call fails, so booking
   // answers "calendar unavailable" and the call goes to a human rather than promising a slot nobody checked.
   let calendar: CalendarPort, fakeCalendar: FakeCalendar | undefined;
@@ -109,7 +128,8 @@ export function makeDeps(o: { env?: Record<string, string | undefined>; now?: ()
   else if (env.GEMINI_API_KEY) extractor = new GeminiExtractor({ apiKey: env.GEMINI_API_KEY, paidTierConfirmed: true });
   else if (env.NODE_ENV !== "production") extractor = fakeExtractor = new FakeExtractor();
   const enquiries = new InMemoryEnquiryStore();
-  const postcall = new InMemoryPostCallRepo(env.PHONE_HASH_PEPPER);
+  if (db && !env.PHONE_ENC_KEY) throw new Error("PHONE_ENC_KEY is required when a database is used (caller phone numbers are stored encrypted)");
+  const postcall: PostCallRepo = db ? new PgPostCallRepo(db, { pepper: env.PHONE_HASH_PEPPER, encKey: env.PHONE_ENC_KEY! }) : new InMemoryPostCallRepo(env.PHONE_HASH_PEPPER);
   const handoff = new HandoffService({ repo: bookingRepo, calendar, notifier, now, hours, config: o.bookingConfig ?? DEFAULT_BOOKING_CONFIG,
     // Enquiries made live are in `enquiries`; those from post-call processing (prompt-only calls) are in the post-call repo. Reassignment needs both.
     loadEnquiry: async (id) => {
@@ -119,7 +139,7 @@ export function makeDeps(o: { env?: Record<string, string | undefined>; now?: ()
       return row ? toEnquiryRecord(row, row.callerId ? await postcall.callerContact(row.callerId) : null, now()) : null;
     },
     ownerChatId: env.OWNER_TELEGRAM_CHAT_ID ? Number(env.OWNER_TELEGRAM_CHAT_ID) : null, nikhilChatId: env.NIKHIL_TELEGRAM_CHAT_ID ? Number(env.NIKHIL_TELEGRAM_CHAT_ID) : null });
-  const calStore = new InMemoryCalBookingStore();
+  const calStore: CalBookingStore = db ? new PgCalBookingStore(db) : new InMemoryCalBookingStore();
   const router = new CallRouter({ repo: postcall, cal: calStore, booking, bookings: bookingRepo, pepper: env.PHONE_HASH_PEPPER, now, hours });
   // prompt_only is the production mode (owner decision): Vaani's prompt-only agent cannot call our tools mid-call, so every call is decided here, afterwards, and the
   // booking is made by Vaani's Cal.com and matched by the router. Vaani's own extracted fields are merged in (they win where valid).
@@ -143,11 +163,14 @@ export function makeDeps(o: { env?: Record<string, string | undefined>; now?: ()
   const alerts = new AlertDrainer({ repo: postcall, notifier, designLeadChat: async () => (await bookingRepo.listActiveDesigners()).find((x) => x.isDesignLead && x.telegramChatId != null)?.telegramChatId ?? null,
     ownerChatId: env.OWNER_TELEGRAM_CHAT_ID ? Number(env.OWNER_TELEGRAM_CHAT_ID) : undefined, nikhilChatId: env.NIKHIL_TELEGRAM_CHAT_ID ? Number(env.NIKHIL_TELEGRAM_CHAT_ID) : undefined });
   return { env, repo: new InMemoryRepo(env.PHONE_HASH_PEPPER), now, hours, designerNames: o.designerNames ?? [],
-    enquiries, bookingRepo, calendar, fakeCalendar, notifier, fakeNotifier, handoff, crm, email, fakeCrm, fakeEmail, outbox, dashboard: new InMemoryDashboardSource(postcall, bookingRepo), calStore, router, vaaniVoice, fakeVaaniVoice, booking, postcall, extractor, fakeExtractor, pipeline, alerts };
+    enquiries, bookingRepo, calendar, fakeCalendar, notifier, fakeNotifier, handoff, crm, email, fakeCrm, fakeEmail, outbox, dashboard: db ? new PgDashboardSource(db) : new InMemoryDashboardSource(postcall as InMemoryPostCallRepo, bookingRepo as InMemoryBookingRepo), db, calStore, router, vaaniVoice, fakeVaaniVoice, booking, postcall, extractor, fakeExtractor, pipeline, alerts };
 }
 
 // Process-wide singleton for the Next dev server (state is in-memory until Supabase lands).
 const g = globalThis as unknown as { __aanganDeps?: Deps };
 export function getDeps(): Deps {
-  return (g.__aanganDeps ??= makeDeps());
+  if (g.__aanganDeps) return g.__aanganDeps;
+  const env = getEnv(process.env);
+  const db = openDb({ DATABASE_URL: env.DATABASE_URL, LOCAL_DB_DIR: env.LOCAL_DB_DIR });
+  return (g.__aanganDeps = db ? makeDeps({ db }) : makeDeps());
 }

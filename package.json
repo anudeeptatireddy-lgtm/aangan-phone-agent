@@ -14,7 +14,9 @@
     "test:supabase-local": "SUPABASE_LOCAL=1 vitest run tests/db-local --no-file-parallelism",
     "db:start": "supabase start -x realtime,storage-api,imgproxy,mailpit,studio,edge-runtime,logflare,vector,supavisor,postgres-meta",
     "db:stop": "supabase stop",
-    "db:reset": "supabase db reset"
+    "db:reset": "supabase db reset",
+    "seed:demo": "tsx scripts/seed-demo.ts",
+    "seed:demo:reset": "tsx scripts/seed-demo-reset.ts"
   },
   "dependencies": {
     "next": "^16.4.0",

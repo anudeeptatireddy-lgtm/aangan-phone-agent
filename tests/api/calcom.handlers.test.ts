@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { createHmac } from "node:crypto";
-import { makeDeps, Deps } from "@/server/deps";
+import { makeDeps, MemoryDeps as Deps } from "@/server/deps";
 import { hashPhone } from "@/lib/phone";
 import { handleCalcomWebhook } from "@/server/handlers/calcom-webhook";
 

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { createHmac } from "node:crypto";
-import { makeDeps, Deps } from "@/server/deps";
+import { makeDeps, MemoryDeps as Deps } from "@/server/deps";
 import { handleTool } from "@/server/handlers/tools";
 import { handleProcessCall, handleDrainOutbox } from "@/server/handlers/post-call";
 import { GeminiExtractor } from "@/adapters/llm/gemini";

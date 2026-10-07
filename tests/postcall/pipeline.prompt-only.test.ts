@@ -121,3 +121,21 @@ describe("prompt_only: complaints and existing clients (hard rule 4)", () => {
     expect(kinds(t.repo)).toEqual(["design_lead_alert"]);
   });
 });
+
+describe("prompt_only: the voice-minute cost goes to the ledger the dashboard reads", () => {
+  it("writes a voice_minutes row (minutes x rate) next to the AI-token rows, and the call's roll-up still adds up", async () => {
+    const t = make();
+    t.extractor.set("v1", ext());
+    await t.pipeline.process(rec("v1", { durationS: 450, voiceCostInr: 39.82, voiceRateInrPerMin: 5.31 }));
+    const rows = t.repo.costs.flatMap((c) => c.rows);
+    expect(rows.map((r) => r.line).sort()).toEqual(["ai_tokens_in", "ai_tokens_out", "voice_minutes"]);
+    expect(rows.find((r) => r.line === "voice_minutes")).toMatchObject({ provider: "vaanivoice", quantity: 7.5, unit: "minute", unitCost: 5.31, currency: "INR", fxInrPerUsd: null, source: "computed" });
+    expect(rows.find((r) => r.line === "voice_minutes")!.amountInr).toBeCloseTo(39.82, 2);
+  });
+  it("no rate or no duration: no voice row (never invent a cost)", async () => {
+    const t = make();
+    t.extractor.set("v2", ext());
+    await t.pipeline.process(rec("v2", { durationS: 450 }));
+    expect(t.repo.costs.flatMap((c) => c.rows).some((r) => r.line === "voice_minutes")).toBe(false);
+  });
+});
