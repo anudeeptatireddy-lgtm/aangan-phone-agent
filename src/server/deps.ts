@@ -1,5 +1,6 @@
 import { DEFAULT_HOURS, HoursConfig } from "@/core/hours";
 import { getEnv, Env } from "@/lib/env";
+import { log } from "@/lib/log";
 import { FakeCalendar } from "@/adapters/calendar/fake";
 import { FakeNotifier } from "@/adapters/notify/fake";
 import { TelegramNotifier } from "@/adapters/notify/telegram";
@@ -12,6 +13,8 @@ import { ResendEmail } from "@/adapters/email/resend";
 import { GoogleCalendar } from "@/adapters/calendar/google";
 import { parseServiceAccount } from "@/adapters/calendar/service-account";
 import type { CalendarPort } from "@/core/ports";
+import type { DashboardSource } from "@/core/dashboard/source";
+import { InMemoryDashboardSource } from "./dashboard-source";
 import { OutboxRunner } from "@/core/outbox/runner";
 import { BookingService } from "@/core/booking/service";
 import { DEFAULT_BOOKING_CONFIG, BookingConfig, Designer } from "@/core/booking/types";
@@ -53,6 +56,7 @@ export interface Deps {
   fakeCrm: FakeCrm | undefined;
   fakeEmail: FakeEmail | undefined;
   outbox: OutboxRunner;
+  dashboard: DashboardSource;
   booking: BookingService;
   // Session 4: post-call pipeline
   postcall: InMemoryPostCallRepo;
@@ -88,10 +92,11 @@ export function makeDeps(o: { env?: Record<string, string | undefined>; now?: ()
   else notifier = new UnconfiguredNotifier();
   const booking = new BookingService({ repo: bookingRepo, calendar, notifier, now, hours, config: o.bookingConfig ?? DEFAULT_BOOKING_CONFIG });
 
-  // Extractor: the real Gemini adapter only with a key AND an explicit paid-tier confirmation (it throws otherwise, so a misconfigured
-  // deployment fails at boot instead of sending caller data to a tier that trains on it). Without a key: a scripted fake outside production.
+  // Extractor: the real Gemini adapter only with a key AND an explicit paid-tier confirmation (an unconfirmed key disables extraction instead of sending caller data to a tier that may train on it). Without a key: a scripted fake outside production.
   let extractor: ExtractionPort | undefined, fakeExtractor: FakeExtractor | undefined;
-  if (env.GEMINI_API_KEY) extractor = new GeminiExtractor({ apiKey: env.GEMINI_API_KEY, paidTierConfirmed: env.GEMINI_PAID_TIER_CONFIRMED === "true" });
+  // A key without the confirmation sends NOTHING: post-call processing stays off (503) and the rest of the app keeps running.
+  if (env.GEMINI_API_KEY && env.GEMINI_PAID_TIER_CONFIRMED !== "true") log("error", "GEMINI_API_KEY is set but GEMINI_PAID_TIER_CONFIRMED is not 'true': post-call extraction is DISABLED (hard rule 6)");
+  else if (env.GEMINI_API_KEY) extractor = new GeminiExtractor({ apiKey: env.GEMINI_API_KEY, paidTierConfirmed: true });
   else if (env.NODE_ENV !== "production") extractor = fakeExtractor = new FakeExtractor();
   const enquiries = new InMemoryEnquiryStore();
   const handoff = new HandoffService({ repo: bookingRepo, calendar, notifier, now, hours, config: o.bookingConfig ?? DEFAULT_BOOKING_CONFIG,
@@ -112,7 +117,7 @@ export function makeDeps(o: { env?: Record<string, string | undefined>; now?: ()
   const alerts = new AlertDrainer({ repo: postcall, notifier,
     ownerChatId: env.OWNER_TELEGRAM_CHAT_ID ? Number(env.OWNER_TELEGRAM_CHAT_ID) : undefined, nikhilChatId: env.NIKHIL_TELEGRAM_CHAT_ID ? Number(env.NIKHIL_TELEGRAM_CHAT_ID) : undefined });
   return { env, repo: new InMemoryRepo(env.PHONE_HASH_PEPPER), now, hours, designerNames: o.designerNames ?? [],
-    enquiries, bookingRepo, calendar, fakeCalendar, notifier, fakeNotifier, handoff, crm, email, fakeCrm, fakeEmail, outbox, booking, postcall, extractor, fakeExtractor, pipeline, alerts };
+    enquiries, bookingRepo, calendar, fakeCalendar, notifier, fakeNotifier, handoff, crm, email, fakeCrm, fakeEmail, outbox, dashboard: new InMemoryDashboardSource(postcall, bookingRepo), booking, postcall, extractor, fakeExtractor, pipeline, alerts };
 }
 
 // Process-wide singleton for the Next dev server (state is in-memory until Supabase lands).

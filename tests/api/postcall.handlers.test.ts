@@ -95,8 +95,10 @@ describe("end to end: live call -> booking -> post-call", () => {
 });
 
 describe("extractor selection (hard rule 6: paid tier only)", () => {
-  it("a Gemini key WITHOUT paid-tier confirmation refuses to start", () => {
-    expect(() => mk({ ...ENV, GEMINI_API_KEY: "AIzaFAKEKEYFORTESTS0123456789abcdefgh" })).toThrow(/paid/i);
+  it("a Gemini key WITHOUT paid-tier confirmation disables extraction (nothing is sent) but the app still starts", () => {
+    const d = mk({ ...ENV, GEMINI_API_KEY: "AIzaFAKEKEYFORTESTS0123456789abcdefgh" });
+    expect(d.extractor).toBeUndefined();
+    expect(d.pipeline).toBeUndefined();
   });
   it("key + confirmation -> the real Gemini adapter", () => {
     expect(mk({ ...ENV, GEMINI_API_KEY: "AIzaFAKEKEYFORTESTS0123456789abcdefgh", GEMINI_PAID_TIER_CONFIRMED: "true" }).extractor).toBeInstanceOf(GeminiExtractor);
