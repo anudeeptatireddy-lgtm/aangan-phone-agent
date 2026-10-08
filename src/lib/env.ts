@@ -31,8 +31,8 @@ const Env = z.object({
   // Storage. DATABASE_URL = Postgres (Supabase later); LOCAL_DB_DIR = local PGlite directory (migrations + seed applied on first use). Neither = in-memory (tests).
   DATABASE_URL: z.string().url().optional(),
   LOCAL_DB_DIR: z.string().min(1).optional(),
-  // Bearer/query token for the owner dashboard (Nikhil).
-  DASHBOARD_TOKEN: z.string().min(16).optional(),
+  // The owner dashboard has NO login outside production. In production this one password is required; without it the dashboard is blocked.
+  DASHBOARD_PASSWORD: z.string().min(12, "DASHBOARD_PASSWORD must be at least 12 characters").optional(),
   // vaanivoice.ai (Vaani AI Research): API key for call_details/call-history, the secret path segment of our webhook URL, and the dashboard's
   // per-minute rate (used only to ESTIMATE voice cost: the vendor's cost field has no documented unit).
   VAANIVOICE_API_KEY: z.string().optional(),

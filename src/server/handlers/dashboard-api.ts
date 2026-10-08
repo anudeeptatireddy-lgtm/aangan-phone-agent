@@ -2,7 +2,7 @@ import { z } from "zod";
 import { METRICS, overview, type MetricName, type Q } from "@/db/dash-metrics";
 import { callsCsv, designerStats, getCallDetail, getReview, listCalls, revealPhone, reviewCall, weekStartOf, type CallsQuery } from "@/db/dash-calls";
 import type { Deps } from "../deps";
-import { dashboardAuthorized } from "./dashboard";
+import { accessOf, dashboardGate } from "./dashboard";
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
 const IST_MS = 330 * 60_000;
@@ -39,13 +39,13 @@ export function parseDashQuery(url: URL, now: Date): { ok: true; q: Q } | { ok: 
 
 const isMonday = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s) && istStart(s) !== null && new Date(`${s}T00:00:00Z`).getUTCDay() === 1;
 
-const ReviewBody = z.object({ callId: z.string().min(1), overturned: z.boolean(), reason: z.string().max(500).optional(), reviewer: z.string().max(80) });
+const ReviewBody = z.object({ callId: z.string().min(1), overturned: z.boolean(), reason: z.string().max(500).optional(), reviewer: z.string().max(80).optional() });
 
 /** One entry point for every /api/dashboard/* data route: login, database, range, then the route. */
 export async function handleDashApi(req: Request, deps: Deps): Promise<Response> {
-  const token = deps.env.DASHBOARD_TOKEN;
-  if (!token) return json(503, { error: "dashboard_token_not_configured" });
-  if (!dashboardAuthorized(req, token)) return json(401, { error: "unauthorized" });
+  const refused = dashboardGate(req, deps);
+  if (refused) return refused;
+  const who = accessOf(deps).mode === "open" ? "local user" : "dashboard";
   const db = deps.db;
   if (!db) return json(503, { error: "database_not_configured" }); // the dashboard reads Postgres only
   const url = new URL(req.url);
@@ -89,7 +89,7 @@ export async function handleDashApi(req: Request, deps: Deps): Promise<Response>
   if (head === "calls" && a && b === "reveal") {
     if (req.method !== "POST") return json(405, { error: "post_only" });
     const ip = (req.headers.get("x-forwarded-for")?.split(",")[0] ?? req.headers.get("x-real-ip") ?? "").trim() || undefined;
-    const r = await revealPhone(db, deps.postcall, { vendorCallId: a, demo: q.demo, ip });
+    const r = await revealPhone(db, deps.postcall, { vendorCallId: a, demo: q.demo, ip, who });
     if (r.ok) return json(200, { phone: r.phone });
     return json(r.error === "rate_limited" ? 429 : 404, { error: r.error });
   }
@@ -99,7 +99,9 @@ export async function handleDashApi(req: Request, deps: Deps): Promise<Response>
     if (req.method === "POST") {
       const body = ReviewBody.safeParse(await req.json().catch(() => null));
       if (!body.success) return json(400, { error: "bad_body" });
-      const r = await reviewCall(db, { ...body.data, demo: q.demo });
+      // No login locally means no name: the review is "local user". Behind the password the reviewer types their own name (self-declared).
+      const reviewer = who === "local user" ? "local user" : body.data.reviewer ?? "";
+      const r = await reviewCall(db, { ...body.data, reviewer, demo: q.demo });
       if (r.ok) return json(200, { ok: true });
       return json(r.error === "not_in_review" ? 404 : 400, { error: r.error });
     }

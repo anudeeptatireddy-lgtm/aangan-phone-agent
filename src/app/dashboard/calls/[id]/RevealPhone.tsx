@@ -10,17 +10,17 @@ export function RevealPhone({ callId, masked, demo }: { callId: string; masked: 
     setBusy(true); setErr(null);
     try {
       const r = await fetch(`/api/dashboard/calls/${encodeURIComponent(callId)}/reveal${demo ? "?data=demo" : ""}`, { method: "POST" });
-      if (!r.ok) { setErr(r.status === 429 ? "Too many reveals this hour." : "Could not reveal this number."); return; }
+      if (!r.ok) { setErr(r.status === 429 ? "Too many numbers shown this hour. Try again later." : "Could not show this number."); return; }
       setPhone(((await r.json()) as { phone: string }).phone);
       setTimeout(() => setPhone(null), 30_000);
-    } catch { setErr("Could not reveal this number."); } finally { setBusy(false); }
+    } catch { setErr("Could not show this number."); } finally { setBusy(false); }
   }
   return (
     <span>
-      <span style={{ fontVariantNumeric: "tabular-nums" }}>{phone ?? masked}</span>{" "}
-      {phone ? <button className="btn ghost" type="button" onClick={() => setPhone(null)}>Hide</button>
-        : <button className="btn ghost" type="button" onClick={reveal} disabled={busy} title="This is logged">{busy ? "…" : "Reveal (logged)"}</button>}
-      {err && <span style={{ color: "var(--red)", marginLeft: 8 }}>{err}</span>}
+      <span className="num phone" aria-live="polite">{phone ?? masked}</span>{" "}
+      {phone ? <button className="btn quiet" type="button" onClick={() => setPhone(null)}>Hide it</button>
+        : <button className="btn quiet" type="button" onClick={reveal} disabled={busy} title="Each look is logged">{busy ? "Showing…" : "Show the number"}</button>}
+      {err && <span role="alert" style={{ color: "var(--bad)", marginLeft: 8 }}>{err}</span>}
     </span>
   );
 }

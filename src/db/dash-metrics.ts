@@ -7,6 +7,22 @@ import type { SqlClient } from "./pg-booking-repo";
 // `demo` selects the demo or the live rows: they never mix. No query here selects a phone number, a name or an email.
 
 export interface Q { from: Date; to: Date; demo: boolean }
+/**
+ * What a period is compared with. A whole calendar month (IST) is compared with the whole month before it; any other range with the same number
+ * of days straight before it. `kind` tells the page how to word it ("vs August" or "vs the 7 days before").
+ */
+export function previousRange(q: Q): Q & { kind: "month" | "days" } {
+  const parts = (d: Date) => { const x = new Date(d.getTime() + 330 * 60_000); return { y: x.getUTCFullYear(), m: x.getUTCMonth(), day: x.getUTCDate(), atMidnight: x.getUTCHours() === 0 && x.getUTCMinutes() === 0 }; };
+  const a = parts(q.from), b = parts(q.to);
+  const nextMonth = a.m === 11 ? { y: a.y + 1, m: 0 } : { y: a.y, m: a.m + 1 };
+  if (a.day === 1 && a.atMidnight && b.day === 1 && b.atMidnight && b.y === nextMonth.y && b.m === nextMonth.m) {
+    const prevFrom = new Date(Date.UTC(a.m === 0 ? a.y - 1 : a.y, a.m === 0 ? 11 : a.m - 1, 1) - 330 * 60_000);
+    return { from: prevFrom, to: q.from, demo: q.demo, kind: "month" };
+  }
+  const len = q.to.getTime() - q.from.getTime();
+  return { from: new Date(q.from.getTime() - len), to: q.from, demo: q.demo, kind: "days" };
+}
+
 const P = (q: Q) => [q.from.toISOString(), q.to.toISOString(), q.demo];
 
 const COHORT = `

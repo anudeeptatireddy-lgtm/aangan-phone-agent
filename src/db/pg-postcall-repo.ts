@@ -127,14 +127,15 @@ export class PgPostCallRepo implements PostCallRepo {
 
   async recordEvaluation(e: EvaluationInput) {
     await this.db.query(
-      `insert into rule_evaluations(enquiry_id, call_id, phase, input, fit, reason_codes, rule_version_id, call_date)
-       values ($1, (select id from calls where vaani_call_id=$2), $3, $4::jsonb, $5, $6, (select id from rule_versions where version=$7), $8::timestamptz)`,
+      // clock_timestamp(), not the default now(). Two evaluations can still land in the same millisecond, so `latestEvaluation` breaks ties by insertion order (ctid; this table is insert-only), never by the random id.
+      `insert into rule_evaluations(enquiry_id, call_id, phase, input, fit, reason_codes, rule_version_id, call_date, evaluated_at)
+       values ($1, (select id from calls where vaani_call_id=$2), $3, $4::jsonb, $5, $6, (select id from rule_versions where version=$7), $8::timestamptz, clock_timestamp())`,
       [e.enquiryId ?? null, e.vendorCallId, e.phase, JSON.stringify(e.input), e.fit, e.reasonCodes, versionNumber(e.ruleVersion), iso(e.callDate)]);
   }
   async latestEvaluation(vendorCallId: string, phase: "live" | "post_call"): Promise<EvaluationRow | null> {
     const { rows } = await this.db.query(
       `select ev.phase, ev.fit, ev.reason_codes, ev.evaluated_at, ev.enquiry_id, rv.version from rule_evaluations ev join calls c on c.id = ev.call_id join rule_versions rv on rv.id = ev.rule_version_id
-       where c.vaani_call_id=$1 and ev.phase=$2 order by ev.evaluated_at desc, ev.id desc limit 1`, [vendorCallId, phase]);
+       where c.vaani_call_id=$1 and ev.phase=$2 order by ev.evaluated_at desc, ev.ctid desc limit 1`, [vendorCallId, phase]);
     const r = rows[0];
     return r ? { phase: r.phase as EvaluationRow["phase"], fit: r.fit as EvaluationRow["fit"], reasonCodes: r.reason_codes as string[], ruleVersion: `v${r.version}`, evaluatedAt: date(r.evaluated_at)!, enquiryId: (r.enquiry_id as string) ?? null } : null;
   }

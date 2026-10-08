@@ -2,34 +2,36 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-/** Confirm / Overturn for one call. The reviewer's name is typed once and remembered in this browser; there is one shared login, so it is self-declared. */
-export function ReviewActions({ callId, demo, critical, state }: { callId: string; demo: boolean; critical: boolean; state: "open" | "confirmed" | "overturned" }) {
+/** Two buttons per call. Locally there is no login, so no name is asked for and the review is recorded as "local user"; behind the password the reviewer types a name once (self-declared). */
+export function ReviewActions({ callId, demo, critical, state, local }: { callId: string; demo: boolean; critical: boolean; state: "open" | "confirmed" | "overturned"; local: boolean }) {
   const router = useRouter();
   const [reviewer, setReviewer] = useState("");
   const [reason, setReason] = useState("");
   const [asking, setAsking] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  useEffect(() => { try { setReviewer(localStorage.getItem("aangan_reviewer") ?? ""); } catch { /* private window: fine */ } }, []);
+  useEffect(() => { if (!local) try { setReviewer(localStorage.getItem("aangan_reviewer") ?? ""); } catch { /* private window: fine */ } }, [local]);
 
   async function send(overturned: boolean) {
-    if (!reviewer.trim()) { setErr("Type your name first."); return; }
-    if (overturned && critical && !reason.trim()) { setAsking(true); setErr("Say briefly why."); return; }
+    if (!local && !reviewer.trim()) { setErr("Type your name first."); return; }
+    if (overturned && critical && !reason.trim()) { setAsking(true); setErr("Say briefly what the agent should have done."); return; }
     setBusy(true); setErr(null);
     try {
-      try { localStorage.setItem("aangan_reviewer", reviewer.trim()); } catch { /* ignore */ }
-      const r = await fetch(`/api/dashboard/review${demo ? "?data=demo" : ""}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ callId, overturned, reason: reason.trim() || undefined, reviewer: reviewer.trim() }) });
-      if (!r.ok) { setErr("Could not save."); return; }
+      if (!local) try { localStorage.setItem("aangan_reviewer", reviewer.trim()); } catch { /* ignore */ }
+      const r = await fetch(`/api/dashboard/review${demo ? "?data=demo" : ""}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ callId, overturned, reason: reason.trim() || undefined, reviewer: local ? undefined : reviewer.trim() }) });
+      if (!r.ok) { setErr("Could not save that. Try again."); return; }
       setAsking(false); router.refresh();
-    } catch { setErr("Could not save."); } finally { setBusy(false); }
+    } catch { setErr("Could not save that. Try again."); } finally { setBusy(false); }
   }
   return (
-    <div className="f" style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", marginTop: 8 }}>
-      <input value={reviewer} onChange={(e) => setReviewer(e.target.value)} placeholder="Your name" aria-label="Your name" style={{ width: 120 }} />
-      <button className="btn ghost" type="button" disabled={busy} onClick={() => send(false)}>{state === "confirmed" ? "✓ Agent was right" : "Agent was right"}</button>
-      <button className="btn red" type="button" disabled={busy} onClick={() => (asking || !critical ? send(true) : (setAsking(true), setErr("Say briefly why.")))}>{state === "overturned" ? "Overturned ✓" : "Overturn"}</button>
-      {asking && <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why? (e.g. should have escalated)" aria-label="Reason" style={{ flex: 1, minWidth: 180 }} />}
-      {err && <span style={{ color: "var(--red)" }}>{err}</span>}
+    <div>
+      <div className="acts">
+        {!local && <input value={reviewer} onChange={(e) => setReviewer(e.target.value)} placeholder="Your name" aria-label="Your name" style={{ width: 120 }} />}
+        <button className="btn quiet" type="button" disabled={busy} onClick={() => send(false)}>{state === "confirmed" ? "Agent was right ✓" : "Agent was right"}</button>
+        <button className="btn danger" type="button" disabled={busy} onClick={() => (asking || !critical ? send(true) : (setAsking(true), setErr("Say briefly what the agent should have done.")))}>{state === "overturned" ? "Overturned ✓" : "Overturn"}</button>
+      </div>
+      {asking && <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="What should it have done?" aria-label="Why it is being overturned" style={{ width: "100%", marginTop: 8 }} />}
+      {err && <p role="alert" style={{ color: "var(--bad)", margin: "6px 0 0", fontSize: 13 }}>{err}</p>}
     </div>
   );
 }

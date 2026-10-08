@@ -4,168 +4,158 @@ import { carry } from "./context";
 
 type Ok = Extract<DashCtx, { state: "ok" }>;
 
-// ---- formatting --------------------------------------------------------------------------------------------------------------------------------
-export const inr = (n: number | null | undefined, max = 2) => (n == null ? "n/a" : `₹${n.toLocaleString("en-IN", { maximumFractionDigits: max })}`);
-export const inrShort = (n: number | null | undefined) => {
-  if (n == null) return "n/a";
-  if (n >= 1e7) return `₹${(n / 1e7).toFixed(2)} Cr`;
-  if (n >= 1e5) return `₹${(n / 1e5).toFixed(1)} L`;
-  return inr(n, 0);
-};
-export const pct = (x: number | null | undefined) => (x == null ? "n/a" : `${Math.round(x * 1000) / 10}%`);
-export const when = (d: Date | string | null | undefined) => d ? new Date(d).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true }) : "—";
-export const day = (d: Date | string | null | undefined) => d ? new Date(d).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", year: "numeric" }) : "—";
-export const dur = (s: number | null | undefined) => (s == null ? "—" : s >= 60 ? `${Math.floor(s / 60)} min ${s % 60} s` : `${s} s`);
-export const mins = (m: number | null | undefined) => (m == null ? "n/a" : m < 1 ? "<1 min" : `${Math.round(m)} min`);
-export const langName = (l: string | null | undefined) => (l === "en" ? "English" : l === "hi" ? "Hindi" : l === "mr" ? "Marathi" : l ? l : null);
-export const label = (s: string | null | undefined) => (s ? s.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase()) : "—");
+export * from "./format";
+import { label, outcomeWord, periodTitle, whenShort } from "./format";
+const outcomeTone = (o: string | null | undefined) => (o === "booked" ? "" : o === "review" ? "wait" : o === "escalated" || o === "missed" ? "bad" : "none");
+export const Outcome = ({ o, extra }: { o: string | null | undefined; extra?: string }) => <span><i className={`dot ${outcomeTone(o)}`} aria-hidden="true" />{outcomeWord(o)}{extra ? <span className="muted"> {extra}</span> : null}</span>;
 
-// ---- styles ------------------------------------------------------------------------------------------------------------------------------------
-const CSS = `
-.dash{--bg:#f6f7f5;--fg:#1d2420;--muted:#66706a;--card:#fff;--line:#dfe3df;--accent:#2d6a4f;--accent-soft:#d7eadf;--amber:#d99a1e;--red:#b3261e;--red-soft:#fbe4e2;--blue:#3b6ea5;--grey:#c9cfca;
-  font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--fg);background:var(--bg);min-height:100vh;margin:0;line-height:1.4}
-@media (prefers-color-scheme:dark){.dash{--bg:#121714;--fg:#e7ece8;--muted:#9aa49e;--card:#1b221e;--line:#2c3631;--accent:#58b585;--accent-soft:#1f3a2c;--amber:#e3ad3c;--red:#ff7b72;--red-soft:#3c1f1d;--blue:#79a8d8;--grey:#44504a}}
-.dash *{box-sizing:border-box}.dash a{color:inherit}.dash h1{font-size:1.35rem;margin:0}.dash h2{font-size:1.05rem;margin:0 0 .6rem}.dash h3{font-size:.95rem;margin:.9rem 0 .4rem}
-.wrap{max-width:1120px;margin:0 auto;padding:12px 16px 48px}
-.top{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;padding:10px 0}
-.nav{display:flex;flex-wrap:wrap;gap:4px}.nav a{text-decoration:none;padding:7px 12px;border-radius:999px;border:1px solid var(--line);background:var(--card);font-size:.9rem}.nav a[aria-current=page]{background:var(--accent);color:#fff;border-color:var(--accent)}
-.bar{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:end;margin:6px 0 14px;padding:10px 12px;background:var(--card);border:1px solid var(--line);border-radius:12px}
-.bar label{display:flex;flex-direction:column;font-size:.75rem;color:var(--muted);gap:2px}.bar input,.bar select,.f input,.f select{font:inherit;padding:7px 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);min-width:0}
-.btn{font:inherit;padding:8px 14px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer;text-decoration:none;display:inline-block}.btn.ghost{background:transparent;color:var(--fg);border-color:var(--line)}.btn.red{background:var(--red);border-color:var(--red)}
-.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}.seg a{padding:7px 12px;text-decoration:none;font-size:.9rem;background:var(--card)}.seg a[aria-current=true]{background:var(--accent);color:#fff}
-.presets{display:flex;gap:6px;flex-wrap:wrap}.presets a{font-size:.8rem;color:var(--muted)}
-.banner{background:var(--amber);color:#1d1a10;padding:8px 12px;border-radius:10px;font-weight:600;margin:6px 0}.notice{background:var(--accent-soft);padding:8px 12px;border-radius:10px;margin:6px 0;font-size:.9rem}
-.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}.grid2{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr))}
-.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;min-width:0}.tile{padding:12px}.tile .k{color:var(--muted);font-size:.78rem}.tile .v{font-size:1.7rem;font-weight:700;line-height:1.15;word-break:break-word}.tile .s{color:var(--muted);font-size:.78rem}
-.tile.bad{border-color:var(--red);background:var(--red-soft)}.tile.bad .v{color:var(--red)}.tile.good .v{color:var(--accent)}.nodata{color:var(--muted);font-style:italic;font-weight:400;font-size:.95rem}
-.sec{margin-top:18px}.muted{color:var(--muted)}.small{font-size:.8rem}.right{text-align:right}
-.tbl{width:100%;border-collapse:collapse;font-size:.88rem}.tbl th{text-align:left;color:var(--muted);font-weight:600;font-size:.76rem;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}.tbl td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}.tbl tr:last-child td{border-bottom:0}
-.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}.pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:.75rem;border:1px solid var(--line);white-space:nowrap}.pill.g{background:var(--accent-soft);border-color:transparent}.pill.r{background:var(--red-soft);color:var(--red);border-color:transparent}.pill.a{background:#f6e6bd;color:#4a3606;border-color:transparent}
-.fun{display:grid;grid-template-columns:minmax(100px,160px) 1fr minmax(52px,auto);gap:6px 10px;align-items:center}.fun .name{font-size:.85rem}.fun .track{background:var(--bg);border-radius:6px;height:26px;position:relative;overflow:hidden}
-.fun .fill{height:100%;background:var(--accent);border-radius:6px;min-width:2px}.fun .fill.nd{background:repeating-linear-gradient(45deg,var(--grey),var(--grey) 6px,transparent 6px,transparent 12px);width:100%;opacity:.55}
-.fun .num{position:absolute;left:8px;top:3px;font-weight:700;font-size:.85rem;color:var(--fg);text-shadow:0 0 3px var(--card),0 0 3px var(--card)}.fun .conv{font-size:.75rem;color:var(--muted);text-align:right;white-space:nowrap}
-.hb{display:grid;grid-template-columns:minmax(80px,38%) 1fr auto;gap:4px 8px;align-items:center;font-size:.85rem}.hb .t{background:var(--bg);height:12px;border-radius:6px;overflow:hidden}.hb .f{height:100%;background:var(--accent)}
-.cols{display:flex;align-items:flex-end;gap:2px;height:120px}.cols .c{flex:1;min-width:2px;display:flex;flex-direction:column;justify-content:flex-end;height:100%}.cols .a{background:var(--amber)}.cols .i{background:var(--accent)}
-.axis{display:flex;justify-content:space-between;font-size:.72rem;color:var(--muted);margin-top:4px}.legend{display:flex;gap:12px;font-size:.78rem;color:var(--muted);margin-top:6px}.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px}
-.kv{display:grid;grid-template-columns:minmax(110px,170px) 1fr;gap:4px 12px;font-size:.9rem}.kv dt{color:var(--muted)}.kv dd{margin:0;word-break:break-word}
-.tl{list-style:none;margin:0;padding:0 0 0 14px;border-left:2px solid var(--line)}.tl li{position:relative;padding:0 0 12px 10px}.tl li::before{content:"";position:absolute;left:-20px;top:5px;width:10px;height:10px;border-radius:50%;background:var(--accent)}.tl li.warn::before{background:var(--amber)}.tl li.bad::before{background:var(--red)}
-.chat p{margin:0 0 6px;padding:7px 10px;border-radius:12px;max-width:92%}.chat .agent{background:var(--accent-soft)}.chat .caller{background:var(--bg);border:1px solid var(--line);margin-left:auto}
-.login{max-width:380px;margin:12vh auto;padding:0 16px}@media (max-width:560px){.tile .v{font-size:1.45rem}.wrap{padding:8px 12px 40px}.top h1{font-size:1.15rem}}
-`;
+// ---- page frame --------------------------------------------------------------------------------------------------------------------------------
+const Mark = () => <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="2.5" y="2.5" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.6" /><rect x="8" y="8" width="8" height="8" fill="var(--accent)" /></svg>;
+type PageKey = "overview" | "calls" | "designers" | "review";
 
-export function Shell({ ctx, page, path, title, children }: { ctx: Ok; page: "overview" | "calls" | "designers" | "review"; path: string; title: string; children: ReactNode }) {
+export function Page({ ctx, page, path, children }: { ctx: Ok; page: PageKey; path: string; children: ReactNode }) {
   const c = carry(ctx);
-  const nav: [string, string, typeof page][] = [["Overview", "/dashboard", "overview"], ["Calls", "/dashboard/calls", "calls"], ["Designers", "/dashboard/designers", "designers"], ["Weekly review", "/dashboard/review", "review"]];
-  const other = ctx.demo ? "live" : "demo";
-  const other_q = carry({ ...ctx, demo: !ctx.demo });
+  const nav: [string, string, PageKey][] = [["Overview", "/dashboard", "overview"], ["Calls", "/dashboard/calls", "calls"], ["Designers", "/dashboard/designers", "designers"], ["Weekly check", "/dashboard/review", "review"]];
   const today = new Date(Date.now() + 330 * 60_000), iso = (d: Date) => d.toISOString().slice(0, 10);
   const first = `${iso(today).slice(0, 7)}-01`, d7 = iso(new Date(today.getTime() - 6 * 86_400_000)), d30 = iso(new Date(today.getTime() - 29 * 86_400_000));
-  const pre = (f: string, t: string) => carry({ from: f, to: t, demo: ctx.demo });
+  const pre = (f: string, t: string) => `${path}${carry({ from: f, to: t, demo: ctx.demo })}`;
   return (
-    <div className="dash">
-      <style dangerouslySetInnerHTML={{ __html: CSS }} />
+    <>
       <div className="wrap">
-        <div className="top">
-          <h1>{title}</h1>
-          <div className="seg" role="group" aria-label="Data">
-            <a href={`${path}${carry({ ...ctx, demo: false })}`} aria-current={!ctx.demo}>Live</a>
-            <a href={`${path}${other_q}`} aria-current={ctx.demo} title={`Switch to ${other} data`}>Demo</a>
+        <header className="top">
+          <a className="brand" href={`/dashboard${c}`}><Mark />Aangan</a>
+          <nav className="mainnav" aria-label="Dashboard">{nav.map(([name, href, key]) => <a key={key} href={`${href}${c}`} aria-current={key === page ? "page" : undefined}>{name}</a>)}</nav>
+          <div className="tools">
+            <div className="switch" role="group" aria-label="Which data">
+              <a href={`${path}${carry({ ...ctx, demo: false })}`} aria-current={!ctx.demo}>Live</a>
+              <a href={`${path}${carry({ ...ctx, demo: true })}`} aria-current={ctx.demo}>Demo</a>
+            </div>
+            <details className="period">
+              <summary aria-label="Change the dates">{periodTitle(ctx.from, ctx.to)}</summary>
+              <form className="periodform" method="get" action={path}>
+                {ctx.demo && <input type="hidden" name="data" value="demo" />}
+                <div className="row"><label>From<input type="date" name="from" defaultValue={ctx.from} /></label><label>To<input type="date" name="to" defaultValue={ctx.to} /></label></div>
+                <div><button className="btn" type="submit">Show these dates</button></div>
+                <div className="presets"><a href={pre(first, iso(today))}>This month</a><a href={pre(d7, iso(today))}>Last 7 days</a><a href={pre(d30, iso(today))}>Last 30 days</a></div>
+              </form>
+            </details>
           </div>
-        </div>
-        <nav className="nav" aria-label="Dashboard">{nav.map(([name, href, key]) => <a key={key} href={`${href}${c}`} aria-current={key === page ? "page" : undefined}>{name}</a>)}</nav>
-        {ctx.demo && <div className="banner" role="status">DEMO DATA: made-up calls for showing the dashboard. None of this is a real caller.</div>}
+        </header>
+        {ctx.demo && <div className="demo-strip" role="status"><b>Demo data.</b> These are made-up calls, there to show how the dashboard works. None of them is a real caller.</div>}
         {ctx.notice && <div className="notice">{ctx.notice}</div>}
-        <form className="bar" method="get" action={path}>
-          {ctx.demo && <input type="hidden" name="data" value="demo" />}
-          <label>From<input type="date" name="from" defaultValue={ctx.from} /></label>
-          <label>To<input type="date" name="to" defaultValue={ctx.to} /></label>
-          <button className="btn" type="submit">Apply</button>
-          <span className="presets"><a href={`${path}${pre(first, iso(today))}`}>This month</a><a href={`${path}${pre(d7, iso(today))}`}>Last 7 days</a><a href={`${path}${pre(d30, iso(today))}`}>Last 30 days</a></span>
-        </form>
-        {children}
+        <main>{children}</main>
       </div>
-    </div>
+    </>
   );
 }
 
-export function LoginScreen({ error }: { error: boolean }) {
-  return (
-    <div className="dash"><style dangerouslySetInnerHTML={{ __html: CSS }} />
-      <main className="login">
-        <h1>Aangan phone agent</h1><p className="muted">Owner dashboard</p>
-        <form method="post" action="/api/dashboard/login" style={{ display: "flex", gap: 8 }} className="f">
-          <input name="token" type="password" placeholder="Dashboard token" autoComplete="current-password" style={{ flex: 1 }} aria-label="Dashboard token" />
-          <button className="btn" type="submit">Open</button>
-        </form>
-        {error && <p style={{ color: "var(--red)" }}>That token did not match.</p>}
-      </main>
-    </div>
-  );
+/** Full-page messages: the password screen, the locked screen, "no database". */
+export function Gate({ title, children }: { title: string; children?: ReactNode }) {
+  return <main className="gate"><div className="brand" style={{ marginBottom: 18 }}><Mark />Aangan</div><h1 style={{ fontSize: 26 }}>{title}</h1>{children}</main>;
 }
+export const PasswordGate = ({ error }: { error: boolean }) => (
+  <Gate title="Owner dashboard">
+    <p className="muted">Enter the dashboard password to continue.</p>
+    <form method="post" action="/api/dashboard/login"><input name="password" type="password" autoComplete="current-password" aria-label="Dashboard password" placeholder="Password" required /><button className="btn" type="submit">Open</button></form>
+    {error && <p role="alert" style={{ color: "var(--bad)", marginTop: 12 }}>That password did not match.</p>}
+  </Gate>
+);
+export const LockedGate = () => <Gate title="The dashboard is locked"><p className="muted">No dashboard password has been set for this site, so nobody can open it. Set <code>DASHBOARD_PASSWORD</code> (at least 12 characters) in the site's settings and reload.</p></Gate>;
+export const NoDbGate = () => <Gate title="No database is connected"><p className="muted">The dashboard reads from the database only. Set <code>LOCAL_DB_DIR</code> (a local folder) or <code>DATABASE_URL</code> (Supabase) and reload. To try it with sample calls, run <code>pnpm seed:demo</code> and press Demo.</p></Gate>;
 
-export function Message({ title, body }: { title: string; body: string }) {
-  return <div className="dash"><style dangerouslySetInnerHTML={{ __html: CSS }} /><main className="login"><h1>{title}</h1><p className="muted">{body}</p></main></div>;
+export function gateFor(ctx: DashCtx): ReactNode | null {
+  if (ctx.state === "blocked") return <LockedGate />;
+  if (ctx.state === "login") return <PasswordGate error={ctx.error} />;
+  if (ctx.state === "nodb") return <NoDbGate />;
+  return null;
 }
 
 // ---- building blocks ---------------------------------------------------------------------------------------------------------------------------
-export function Tile({ k, v, s, tone, nodata }: { k: string; v?: string; s?: string; tone?: "bad" | "good"; nodata?: boolean }) {
-  return <div className={`card tile ${tone ?? ""}`}><div className="k">{k}</div><div className="v">{nodata ? <span className="nodata">no data yet</span> : v}</div>{s && <div className="s">{s}</div>}</div>;
-}
-export const Card = ({ title, children, className = "" }: { title?: string; children: ReactNode; className?: string }) => <section className={`card ${className}`}>{title && <h2>{title}</h2>}{children}</section>;
+export const Section = ({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) => (
+  <section className="sec"><header><h2>{title}</h2>{hint && <p>{hint}</p>}</header><div>{children}</div></section>
+);
+export const Empty = ({ children }: { children: ReactNode }) => <div className="empty">{children}</div>;
 
-type Stage = { key: string; label: string; unit: string; count: number | null; hasData: boolean; conversion: number | null };
-export function FunnelChart({ stages }: { stages: Stage[] }) {
-  const top = Math.max(1, stages[0]?.count ?? 1);
-  return (
-    <div className="fun" role="img" aria-label="Funnel from calls received to won">
-      {stages.map((s) => (
-        <div key={s.key} style={{ display: "contents" }}>
-          <div className="name">{s.label}<div className="muted small">{s.unit}</div></div>
-          <div className="track">
-            {s.hasData ? <div className="fill" style={{ width: `${Math.max(((s.count ?? 0) / top) * 100, s.count ? 1 : 0)}%` }} /> : <div className="fill nd" />}
-            <span className="num">{s.hasData ? s.count : "no data yet"}</span>
-          </div>
-          <div className="conv">{s.conversion != null ? `${pct(s.conversion)}` : ""}</div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-export function DailyChart({ days }: { days: { date: string; inHours: number; afterHours: number }[] }) {
-  const max = Math.max(1, ...days.map((d) => d.inHours + d.afterHours));
-  const ticks = days.length > 1 ? [days[0]!, days[Math.floor(days.length / 2)]!, days[days.length - 1]!] : days;
+export function Rank({ rows, night, more }: { rows: { key: string; count: number; note?: string; name?: string }[]; night?: boolean; more?: number }) {
+  if (!rows.length) return null;
+  const max = Math.max(1, ...rows.map((r) => r.count));
   return (
     <div>
-      <div className="cols" role="img" aria-label="Calls per day, in hours and after hours">
-        {days.map((d) => (
-          <div key={d.date} className="c" title={`${d.date}: ${d.inHours} in hours, ${d.afterHours} after hours`}>
-            <div className="a" style={{ height: `${(d.afterHours / max) * 100}%` }} /><div className="i" style={{ height: `${(d.inHours / max) * 100}%` }} />
-          </div>
-        ))}
-      </div>
-      <div className="axis">{ticks.map((t) => <span key={t.date}>{t.date.slice(5)}</span>)}</div>
-      <div className="legend"><span><i style={{ background: "var(--accent)" }} />In hours</span><span><i style={{ background: "var(--amber)" }} />After hours</span></div>
+      <div className="rank">{rows.map((r) => <div key={r.key} style={{ display: "contents" }}><span className="name" title={r.name ?? label(r.key)}>{r.name ?? label(r.key)}</span><span className="bar"><i className={night ? "night" : ""} style={{ width: `${(r.count / max) * 100}%` }} /></span><span className="n">{r.count}{r.note ? <span className="muted small"> ({r.note})</span> : null}</span></div>)}</div>
+      {more ? <p className="muted small" style={{ marginTop: 8 }}>and {more} more</p> : null}
     </div>
   );
 }
 
-export function HourChart({ hours }: { hours: { hour: number; count: number; afterHours: number }[] }) {
+// ---- the funnel: the one dark object ---------------------------------------------------------------------------------------------------------
+type Stage = { key: string; label: string; unit: string; count: number | null; hasData: boolean; conversion: number | null };
+const STATIONS: [string, string][] = [["received", "Received"], ["answered", "Answered"], ["qualified", "Qualified"], ["booked", "Booked"], ["pushed", "With a designer"], ["quoted", "Quoted"], ["won", "Won"]];
+const LOSS: Record<string, (n: number) => string> = {
+  answered: (n) => `${n} missed`, qualified: (n) => `${n} not taken forward`, booked: (n) => `${n} qualified, not booked`, pushed: (n) => `${n} waiting for a designer`, quoted: (n) => `${n} not quoted yet`, won: (n) => `${n} not won (yet)`,
+};
+
+export function Funnel({ stages, title, sub }: { stages: Stage[]; title: string; sub: string }) {
+  const W = 1100, H = 272, padX = 72, cy = 152, maxHalf = 62;
+  const get = (k: string) => stages.find((s) => s.key === k)!;
+  const st = STATIONS.map(([k, l]) => ({ k, l, s: get(k) }));
+  const top = Math.max(1, get("received").count ?? 1);
+  const step = (W - 2 * padX) / (st.length - 1);
+  const x = (i: number) => padX + i * step;
+  const half = (c: number | null) => (c == null ? null : c === 0 ? 0 : Math.max((c / top) * maxHalf, 2));
+  const segs = st.slice(0, -1).map((a, i) => {
+    const b = st[i + 1]!, ha = half(a.s.hasData ? a.s.count : null), hb = half(b.s.hasData ? b.s.count : null);
+    if (ha == null || hb == null) return null;
+    const x0 = x(i), x1 = x(i + 1), m = step * 0.5;
+    const d = `M${x0},${cy - ha} C${x0 + m},${cy - ha} ${x1 - m},${cy - hb} ${x1},${cy - hb} L${x1},${cy + hb} C${x1 - m},${cy + hb} ${x0 + m},${cy + ha} ${x0},${cy + ha} Z`;
+    return <path key={a.k} d={d} className={`seg${b.k === "won" ? " won" : ""}`} />;
+  });
+  const summary = st.map((p) => `${p.l}: ${p.s.hasData ? p.s.count : "no data yet"}`).join(", ");
+  return (
+    <div className="funnel">
+      <h2>{title}</h2>
+      <p className="sub">{sub}</p>
+      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-labelledby="funnel-t funnel-d">
+        <title id="funnel-t">{title}</title><desc id="funnel-d">{summary}</desc>
+        {segs}
+        {st.map((p, i) => (
+          <g key={p.k}>
+            <line className="gate" x1={x(i)} x2={x(i)} y1={86} y2={218} />
+            {p.s.hasData ? <text className={`fig${p.k === "won" ? " won" : ""}`} x={x(i)} y={60} textAnchor="middle">{p.s.count}</text>
+              : <><rect className="dashed" x={x(i) - 28} y={cy - 30} width={56} height={60} /><text className="fig" x={x(i)} y={60} textAnchor="middle">–</text><text className="nodata" x={x(i)} y={cy + 4} textAnchor="middle">no data yet</text></>}
+            <text className="stn" x={x(i)} y={240} textAnchor="middle">{p.l}</text>
+            {i > 0 && p.s.hasData && st[i - 1]!.s.hasData && (st[i - 1]!.s.count ?? 0) - (p.s.count ?? 0) > 0 && LOSS[p.k] ? <text className="loss" x={(x(i) + x(i - 1)) / 2} y={262} textAnchor="middle">{LOSS[p.k]!((st[i - 1]!.s.count ?? 0) - (p.s.count ?? 0))}</text> : null}
+          </g>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
+// ---- small charts ---------------------------------------------------------------------------------------------------------------------------------
+export function DaysChart({ days }: { days: { date: string; inHours: number; afterHours: number }[] }) {
+  const max = Math.max(1, ...days.map((d) => d.inHours + d.afterHours));
+  const mid = days[Math.floor(days.length / 2)];
+  const busiest = days.reduce((m, d) => (d.inHours + d.afterHours > m.inHours + m.afterHours ? d : m), days[0]!);
+  const ticks = days.length > 2 ? [days[0]!, mid!, days[days.length - 1]!] : days;
+  return (
+    <div>
+      <div className="days" role="img" aria-label={`Calls each day. Busiest day ${busiest.date} with ${busiest.inHours + busiest.afterHours}.`}>
+        {days.map((d) => <div key={d.date} className="d" title={`${d.date}: ${d.inHours} in hours, ${d.afterHours} after hours`}><div className="a" style={{ height: `${(d.afterHours / max) * 100}%` }} /><div className="i" style={{ height: `${(d.inHours / max) * 100}%` }} /></div>)}
+      </div>
+      <div className="axis">{ticks.map((t) => <span key={t.date}>{whenShort(`${t.date}T12:00:00+05:30`)}</span>)}</div>
+      <div className="legend"><span><i style={{ background: "var(--day)" }} />During working hours</span><span><i style={{ background: "var(--night)" }} />After hours</span><span>Busiest day: {busiest.inHours + busiest.afterHours} calls</span></div>
+    </div>
+  );
+}
+
+export function HoursChart({ hours }: { hours: { hour: number; count: number; afterHours: number }[] }) {
   const max = Math.max(1, ...hours.map((h) => h.count));
   return (
     <div>
-      <div className="cols" style={{ height: 90 }} role="img" aria-label="Calls by hour of day">
-        {hours.map((h) => <div key={h.hour} className="c" title={`${h.hour}:00 · ${h.count} calls (${h.afterHours} after hours)`}><div className={h.afterHours ? "a" : "i"} style={{ height: `${(h.count / max) * 100}%` }} /></div>)}
+      <div className="hours" role="img" aria-label="Calls by hour of the day, India time">
+        {hours.map((h) => <div key={h.hour} className="h" title={`${h.hour}:00 · ${h.count} calls`}><i className={h.hour < 10 || h.hour >= 19 ? "night" : ""} style={{ height: `${(h.count / max) * 100}%` }} /></div>)}
       </div>
-      <div className="axis"><span>0h</span><span>6h</span><span>12h</span><span>18h</span><span>23h</span></div>
+      <div className="axis"><span>12 am</span><span>6 am</span><span>12 pm</span><span>6 pm</span><span>11 pm</span></div>
     </div>
   );
 }
-
-export function HBars({ rows, empty = "Nothing in this period." }: { rows: { key: string; count: number; extra?: string }[]; empty?: string }) {
-  if (!rows.length) return <p className="muted small">{empty}</p>;
-  const max = Math.max(1, ...rows.map((r) => r.count));
-  return <div className="hb">{rows.map((r) => <div key={r.key} style={{ display: "contents" }}><span title={r.key} style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label(r.key)}</span><span className="t"><span className="f" style={{ display: "block", width: `${(r.count / max) * 100}%` }} /></span><span>{r.count}{r.extra ? <span className="muted small"> {r.extra}</span> : null}</span></div>)}</div>;
-}
-export const Pill = ({ children, tone }: { children: ReactNode; tone?: "g" | "r" | "a" }) => <span className={`pill ${tone ?? ""}`}>{children}</span>;
-export const outcomeTone = (o: string | null) => (o === "booked" ? "g" : o === "escalated" || o === "missed" ? "r" : o === "review" ? "a" : undefined);

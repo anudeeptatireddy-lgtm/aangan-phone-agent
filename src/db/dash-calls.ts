@@ -173,14 +173,14 @@ export async function reviewCall(db: SqlClient, o: { callId: string; overturned:
 
 // ---- phone reveal -----------------------------------------------------------------------------------------------------------------------------
 const REVEALS_PER_HOUR = 30;
-export async function revealPhone(db: SqlClient, repo: Pick<PostCallRepo, "callerContact">, o: { vendorCallId: string; demo: boolean; ip?: string }):
+export async function revealPhone(db: SqlClient, repo: Pick<PostCallRepo, "callerContact">, o: { vendorCallId: string; demo: boolean; ip?: string; who?: string }):
   Promise<{ ok: true; phone: string } | { ok: false; error: "no_caller" | "not_found" | "rate_limited" }> {
   const row = (await db.query("select id, caller_id from calls where vaani_call_id = $1 and is_demo = $2", [o.vendorCallId, o.demo])).rows[0];
   if (!row) return { ok: false, error: "not_found" };
   if (!row.caller_id) return { ok: false, error: "no_caller" };
   const recent = n((await db.query("select count(*)::int as n from phone_reveals where revealed_at > now() - interval '1 hour'")).rows[0]?.n);
   if (recent >= REVEALS_PER_HOUR) return { ok: false, error: "rate_limited" };
-  await db.query("insert into phone_reveals(call_id, caller_id, ip, is_demo) values ($1,$2,$3,$4)", [row.id, row.caller_id, o.ip ?? null, o.demo]); // logged BEFORE the number leaves
+  await db.query("insert into phone_reveals(call_id, caller_id, ip, who, is_demo) values ($1,$2,$3,$4,$5)", [row.id, row.caller_id, o.ip ?? null, o.who ?? "dashboard", o.demo]); // logged BEFORE the number leaves
   const contact = await repo.callerContact(String(row.caller_id));
   if (!contact) return { ok: false, error: "no_caller" };
   return { ok: true, phone: contact.phone };

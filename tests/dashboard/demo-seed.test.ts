@@ -101,6 +101,16 @@ describe("seed:demo", () => {
   });
 });
 
+describe("realistic callers", () => {
+  it("a caller's name is the one in their own enquiry, not a made-up one that contradicts the transcript", async () => {
+    const names = Object.fromEntries((await one<{ id: string; name: string | null }>("select c.vaani_call_id as id, cr.name from calls c left join callers cr on cr.id = c.caller_id where c.is_demo")).map((r) => [r.id.replace("demo-", ""), r.name]));
+    expect(names.T01).toBe("Priya");            // "Hi, I'm Priya."
+    expect(names.F01).toBe("Sumit Bhatt");      // the form's Name field
+    expect(names.W01).toBe("Kiran Mazumdar");   // the WhatsApp sender
+    expect(names.T09).toBe("Sheetal Deshpande");
+  });
+});
+
 describe("running it again, and reversing it", () => {
   it("running it twice does not duplicate anything (it resets its own rows first)", async () => {
     const again = await seedDemo(db, ENV);

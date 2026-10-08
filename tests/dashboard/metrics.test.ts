@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { september, SEP, World } from "./fixture";
-import { funnel, outcomes, speed, price, escalations, routerHealth, cost, pipelineValue, breakdowns, daily, kpis, overview, type Q } from "@/db/dash-metrics";
+import { previousRange, funnel, outcomes, speed, price, escalations, routerHealth, cost, pipelineValue, breakdowns, daily, kpis, overview, type Q } from "@/db/dash-metrics";
 
 let w: World;
 const q: Q = { ...SEP, demo: false };
@@ -183,5 +183,22 @@ describe("KPI tiles and the whole overview", () => {
   it("overview bundles every section", async () => {
     const o = await overview(w.db, q);
     expect(Object.keys(o).sort()).toEqual(["breakdowns", "cost", "daily", "escalations", "funnel", "kpis", "outcomes", "pipeline", "price", "range", "router", "speed"]);
+  });
+});
+
+describe("previousRange: what each number is compared with", () => {
+  const ist = (d: string) => new Date(`${d}T00:00:00+05:30`);
+  it("a whole calendar month is compared with the whole month before it (even a 28-day February or a 31-day month)", () => {
+    expect(previousRange({ from: ist("2026-09-01"), to: ist("2026-10-01"), demo: false })).toEqual({ from: ist("2026-08-01"), to: ist("2026-09-01"), demo: false, kind: "month" });
+    expect(previousRange({ from: ist("2026-03-01"), to: ist("2026-04-01"), demo: true })).toEqual({ from: ist("2026-02-01"), to: ist("2026-03-01"), demo: true, kind: "month" });
+    expect(previousRange({ from: ist("2026-01-01"), to: ist("2026-02-01"), demo: false })).toMatchObject({ from: ist("2025-12-01"), kind: "month" });
+  });
+  it("any other range is compared with the same number of days straight before it", () => {
+    expect(previousRange({ from: ist("2026-09-10"), to: ist("2026-09-17"), demo: false })).toEqual({ from: ist("2026-09-03"), to: ist("2026-09-10"), demo: false, kind: "days" });
+    expect(previousRange({ from: ist("2026-09-01"), to: ist("2026-09-16"), demo: false })).toMatchObject({ from: ist("2026-08-17"), kind: "days" }); // half a month is not a month
+  });
+  it("the previous period of the fixture's September (August has one call) really is computed", async () => {
+    const p = previousRange(q);
+    expect((await funnel(w.db, p)).stages[0]!.count).toBe(1);
   });
 });

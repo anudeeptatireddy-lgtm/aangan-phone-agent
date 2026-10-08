@@ -4,35 +4,20 @@ import type { Deps } from "@/server/deps";
 import { handleDashApi, parseDashQuery } from "@/server/handlers/dashboard-api";
 import { september, ENC_KEY, World } from "../dashboard/fixture";
 
-const TOKEN = "dash-token-0123456789abcdef";
-const ENV = { NODE_ENV: "test", PHONE_HASH_PEPPER: "pepper-0123456789ab", PHONE_ENC_KEY: ENC_KEY, TOOL_SHARED_SECRET: "tool-secret-0123456789", DASHBOARD_TOKEN: TOKEN };
+const ENV = { NODE_ENV: "development", PHONE_HASH_PEPPER: "pepper-0123456789ab", PHONE_ENC_KEY: ENC_KEY, TOOL_SHARED_SECRET: "tool-secret-0123456789" };
 const NOW = new Date("2026-10-07T06:00:00Z");
 let w: World; let d: Deps;
 beforeAll(async () => { ({ w } = await september()); d = makeDeps({ env: ENV, now: () => NOW, db: w.db }); }, 120_000);
 
-const req = (path: string, o: { auth?: "bearer" | "cookie" | "none" | "wrong"; method?: string; body?: unknown; deps?: Deps } = {}) => {
-  const h: Record<string, string> = {};
-  if (o.auth !== "none" && o.auth !== "wrong") { if (o.auth === "cookie") h.cookie = `dash=${TOKEN}`; else h.authorization = `Bearer ${TOKEN}`; }
-  if (o.auth === "wrong") h.authorization = "Bearer nope-nope-nope-nope-nope";
-  return handleDashApi(new Request(`http://localhost/api/dashboard/${path}`, { method: o.method ?? "GET", headers: { ...h, ...(o.body ? { "content-type": "application/json" } : {}) }, body: o.body ? JSON.stringify(o.body) : undefined }), o.deps ?? d);
-};
+const req = (path: string, o: { method?: string; body?: unknown; deps?: Deps } = {}) =>
+  handleDashApi(new Request(`http://localhost/api/dashboard/${path}`, { method: o.method ?? "GET", headers: o.body ? { "content-type": "application/json" } : {}, body: o.body ? JSON.stringify(o.body) : undefined }), o.deps ?? d);
 const SEP = "from=2026-09-01&to=2026-09-30";
 const ALL_GET = [`overview?${SEP}`, `metrics/funnel?${SEP}`, `metrics/outcomes?${SEP}`, `metrics/speed?${SEP}`, `metrics/price?${SEP}`, `metrics/escalations?${SEP}`, `metrics/router?${SEP}`, `metrics/cost?${SEP}`,
   `metrics/pipeline?${SEP}`, `metrics/breakdowns?${SEP}`, `metrics/daily?${SEP}`, `metrics/kpis?${SEP}`, `calls?${SEP}`, `calls/c1`, `designers?${SEP}`, `review?week=2026-09-07`];
 
-describe("every dashboard endpoint is behind the dashboard login", () => {
-  it.each(ALL_GET)("%s: 401 without credentials or with a wrong token; 200 with the bearer token or the cookie", async (path) => {
-    expect((await req(path, { auth: "none" })).status).toBe(401);
-    expect((await req(path, { auth: "wrong" })).status).toBe(401);
-    expect((await req(path)).status).toBe(200);
-    expect((await req(path, { auth: "cookie" })).status).toBe(200);
-  });
-  it("the reveal and the review POST need the login too", async () => {
-    expect((await req("calls/c1/reveal", { method: "POST", auth: "none" })).status).toBe(401);
-    expect((await req("review", { method: "POST", auth: "none", body: { callId: "c1", overturned: false, reviewer: "N" } })).status).toBe(401);
-  });
-  it("503 when DASHBOARD_TOKEN is not configured; 503 when there is no database (the dashboard never reads in-memory stores)", async () => {
-    expect((await req("overview", { deps: makeDeps({ env: { ...ENV, DASHBOARD_TOKEN: undefined }, now: () => NOW, db: w.db }) })).status).toBe(503);
+describe("every dashboard endpoint (no login outside production: the gating is tested in dashboard-auth.test.ts)", () => {
+  it.each(ALL_GET)("%s: 200", async (path) => { expect((await req(path)).status).toBe(200); });
+  it("503 when there is no database (the dashboard never reads in-memory stores)", async () => {
     const mem = makeDeps({ env: ENV, now: () => NOW });
     const r = await req("overview", { deps: mem });
     expect(r.status).toBe(503);
@@ -115,7 +100,7 @@ describe("revealing a phone number", () => {
   it("POST only; logs the reveal; returns the number; the request IP is recorded", async () => {
     expect((await req("calls/c1/reveal")).status).toBe(405);
     const before = ((await w.db.query("select count(*)::int n from phone_reveals")).rows[0] as { n: number }).n;
-    const r = await handleDashApi(new Request("http://localhost/api/dashboard/calls/c1/reveal", { method: "POST", headers: { authorization: `Bearer ${TOKEN}`, "x-forwarded-for": "203.0.113.9, 10.0.0.1" } }), d);
+    const r = await handleDashApi(new Request("http://localhost/api/dashboard/calls/c1/reveal", { method: "POST", headers: { "x-forwarded-for": "203.0.113.9, 10.0.0.1" } }), d);
     expect(r.status).toBe(200);
     expect(await r.json()).toEqual({ phone: "+919000000011" });
     expect(((await w.db.query("select count(*)::int n from phone_reveals")).rows[0] as { n: number }).n).toBe(before + 1);

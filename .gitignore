@@ -1,6 +1,7 @@
 # dependencies / build
 node_modules/
 .next/
+.next-*/
 *.tsbuildinfo
 next-env.d.ts
 .vercel/

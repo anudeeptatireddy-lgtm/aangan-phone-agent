@@ -51,6 +51,15 @@ function parseItems(rand: () => number): Item[] {
   return items.sort((a, b) => a.at.getTime() - b.at.getTime() || a.id.localeCompare(b.id));
 }
 
+/** The caller's own name from the document (form field, WhatsApp sender, or "I'm ..."); a made-up one only when the document never gives it. */
+function nameFrom(id: string, fallback: string): string {
+  const text = readFileSync(`docs/enquiries/${id}.md`, "utf8");
+  const cap = "[A-Z][a-z]+(?: [A-Z][a-z]+)?";
+  const m = new RegExp(`Name:\\s*(${cap})`).exec(text) ?? new RegExp(`your name[\\s\\S]*?Caller:\\s*(${cap})[.,]`).exec(text) ?? new RegExp(`— (${cap}):`).exec(text) ?? new RegExp(`(?:I'm|I’m|I am|This is|my name is)\\s+(${cap})`).exec(text.split("\n").filter((l) => /^Caller:/.test(l) || /^[^A-Z]*Caller/.test(l)).join(" "));
+  const n = m?.[1]?.trim();
+  return n && !/^(Front|Aangan|Caller|Unknown)/.test(n) ? n : fallback;
+}
+
 function extractionFor(it: Item, name: string, language: "en" | "hi" | "mr", withEmail: boolean): Extraction {
   const i = (it.fixture?.input ?? {}) as Record<string, unknown>;
   const e = emptyExtraction();
@@ -66,7 +75,11 @@ function extractionFor(it: Item, name: string, language: "en" | "hi" | "mr", wit
     budget_inr: num("budget_inr"), referrer: str("referrer"), asked_for_price: !!i.price_asked, frustrated: !!i.frustrated, exploring_only: !!i.exploring_only,
   } satisfies Partial<Extraction>);
   const bits = [e.bhk ? `${e.bhk}BHK` : null, scope !== "unspecified" ? scope.replace(/_/g, " ") : null, e.location ? `in ${e.location.split(",")[0]}` : null].filter(Boolean);
-  e.summary = it.id === "T09" ? "Existing client; no reply from the designer for five days; wants a senior callback." : bits.length ? `${bits.join(" ")}.` : "General enquiry; few details given.";
+  const said = bits.join(" ");
+  e.summary = it.id === "T09" ? "Existing client; no reply from the designer for five days; wants a senior callback."
+    : !bits.length ? "General enquiry; few details given."
+    : scope === "unspecified" && !e.bhk ? `Enquiry ${said}; few other details given.`
+    : `${said.charAt(0).toUpperCase()}${said.slice(1)}.`;
   return e;
 }
 
@@ -125,7 +138,7 @@ async function run(db: SqlClient, env: { PHONE_HASH_PEPPER: string; PHONE_ENC_KE
   for (const it of items) {
     if (!orphanDone && it.at > orphanReportAt) await orphan();
     const n = it.index + 1;
-    const name = `${FIRST[(n * 7) % FIRST.length]} ${LAST[(n * 3) % LAST.length]}`;
+    const name = nameFrom(it.id, `${FIRST[(n * 7) % FIRST.length]} ${LAST[(n * 3) % LAST.length]}`);
     const phone = `+9190000${String(10000 + n)}`;
     const language = n % 10 === 7 || n % 10 === 8 ? "hi" : n % 10 === 9 ? "mr" : "en";
     const callId = `demo-${it.id}`;
