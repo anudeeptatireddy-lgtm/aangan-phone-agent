@@ -21,7 +21,7 @@ export class InMemoryPostCallRepo implements PostCallRepo {
   escalations: (EscalationRow & { vendorCallId: string })[] = [];
   outbox = new Map<string, OutboxRow>();
   private callers = new Map<string, { id: string; phone: string; name?: string; email?: string; language?: string }>();
-  private crmLinks = new Map<string, { contactId: string; dealId: string }>();
+  private crmLinks = new Map<string, { contactId: string; dealId: string; stage: string | null; dealAmountInr: number | null; stageChangedAt: Date | null; syncedAt: Date | null }>();
   private seq = 0;
 
   constructor(private pepper: string) {}
@@ -38,8 +38,23 @@ export class InMemoryPostCallRepo implements PostCallRepo {
     if (c) Object.assign(c, Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)));
   }
   async callerContact(callerId: string) { const c = this.callerById(callerId); return c ? { phone: c.phone, name: c.name ?? null, email: c.email ?? null } : null; }
-  async getCrmLink(enquiryId: string) { return this.crmLinks.get(enquiryId) ?? null; }
-  async saveCrmLink(enquiryId: string, link: { contactId: string; dealId: string }) { if (!this.crmLinks.has(enquiryId)) this.crmLinks.set(enquiryId, link); }
+  async getCrmLink(enquiryId: string) { const l = this.crmLinks.get(enquiryId); return l ? { contactId: l.contactId, dealId: l.dealId } : null; }
+  async saveCrmLink(enquiryId: string, link: { contactId: string; dealId: string }, at: Date = new Date()) {
+    if (!this.crmLinks.has(enquiryId)) this.crmLinks.set(enquiryId, { ...link, stage: "new", dealAmountInr: null, stageChangedAt: at, syncedAt: at });
+  }
+  async dueCrmLinks(now: Date, limit: number) {
+    return [...this.crmLinks.entries()]
+      .filter(([, l]) => !l.syncedAt || l.syncedAt.getTime() < now.getTime() - (l.stage === "won" || l.stage === "lost" ? 6 * 3_600_000 : 5 * 60_000) + 1)
+      .sort(([, a], [, b]) => (a.syncedAt?.getTime() ?? 0) - (b.syncedAt?.getTime() ?? 0)).slice(0, limit)
+      .map(([enquiryId, l]) => ({ enquiryId, dealId: l.dealId, stage: l.stage, dealAmountInr: l.dealAmountInr }));
+  }
+  async recordDealSync(enquiryId: string, u: { at: Date; stage?: string; amountInr?: number | null }) {
+    const l = this.crmLinks.get(enquiryId); if (!l) return;
+    if (u.stage !== undefined && u.stage !== l.stage) { l.stage = u.stage; l.stageChangedAt = u.at; }
+    if (u.amountInr !== undefined) l.dealAmountInr = u.amountInr;
+    l.syncedAt = u.at;
+  }
+  async getCrmLinkState(enquiryId: string) { const l = this.crmLinks.get(enquiryId); return l ? { stage: l.stage, dealAmountInr: l.dealAmountInr, stageChangedAt: l.stageChangedAt, syncedAt: l.syncedAt } : null; }
   callerById(id: string) { return [...this.callers.values()].find((c) => c.id === id); }
 
   async upsertCall(vendorCallId: string, patch: CallPatch) {

@@ -42,6 +42,8 @@ export interface BookingRepo {
   transitionHandoff(id: string, from: HandoffStatus[], to: HandoffStatus, at: Date, declineReason?: string): Promise<boolean>;
   linkReassignedHandoff(oldId: string, newId: string): Promise<void>;
   markDesignLeadAlerted(id: string, at: Date): Promise<void>;
+  /** The designer reported the consultation happened (their HubSpot deal moved on): the confirmed booking of this enquiry becomes 'attended'. Returns how many changed. */
+  markConsultationHeld(enquiryId: string): Promise<number>;
   /** Move a live booking to another designer (the exclusion constraint still applies) and point it at the new calendar event. */
   reassignBooking(bookingId: string, newDesignerId: string, calendarEventId: string): Promise<{ ok: true; booking: Booking } | { ok: false; reason: "conflict" }>;
 }

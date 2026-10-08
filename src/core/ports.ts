@@ -36,4 +36,12 @@ export interface CrmContact { email?: string; phone?: string; firstName?: string
 export interface CrmPort {
   /** Create-or-update the contact and create a deal associated with it. The deal carries NO amount (the system never sets a price). */
   createDealForEnquiry(i: { contact: CrmContact; deal: { name: string; description: string } }): Promise<{ dealId: string; contactId: string }>;
+  /** Read deals back (stage and the designer's amount). Deals HubSpot did not return are listed as `missing`. */
+  readDeals(dealIds: string[]): Promise<{ deals: DealSnapshot[]; missing: string[] }>;
+  /** A pipeline's stages with HubSpot's own closed / probability metadata. */
+  dealStages(pipelineId: string): Promise<StageInfo[]>;
+  /** The account's deal pipelines (to choose the right one). */
+  dealPipelines(): Promise<{ id: string; label: string }[]>;
 }
+export interface DealSnapshot { dealId: string; pipelineId: string | null; stageId: string | null; amount: number | null; currency: string | null }
+export interface StageInfo { id: string; label: string; closed: boolean | null; probability: number | null }

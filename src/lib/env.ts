@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { parseStageMap } from "@/core/crm/stage-sync";
 
 const Env = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -20,6 +21,8 @@ const Env = z.object({
   HUBSPOT_PIPELINE_ID: z.string().optional(),
   HUBSPOT_PORTAL_ID: z.string().regex(/^\d+$/).optional(), // only to turn a deal id into a link on the dashboard
   HUBSPOT_DEAL_STAGE_ID: z.string().optional(),
+  // JSON: HubSpot stage id -> one of new, consult_booked, consult_held, quote_sent, won, lost (only the studio knows what its own stages mean). Closed won / lost need no entry.
+  HUBSPOT_STAGE_MAP: z.string().optional().superRefine((v, ctx) => { try { parseStageMap(v); } catch (e) { ctx.addIssue({ code: "custom", message: (e as Error).message }); } }),
   // Resend (caller confirmation email). The from-address must be on a domain verified in Resend.
   RESEND_API_KEY: z.string().optional(),
   RESEND_FROM: z.string().optional(),

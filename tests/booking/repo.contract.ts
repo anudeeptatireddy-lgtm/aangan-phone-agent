@@ -187,5 +187,20 @@ export function repoContract(name: string, make: () => Promise<RepoFixture>) {
       expect(after.sentAt!.toISOString()).toBe(t("10:30").toISOString());
       expect(after.dueAt.toISOString()).toBe(t("11:00").toISOString());
     });
+
+    it("markConsultationHeld turns the live booking of an enquiry into 'attended', once, and never touches a cancelled or other enquiry's booking", async () => {
+      const a = await f.repo.createHold(hold(f, { enquiryId: f.enquiryIds[0] }));
+      const b = await f.repo.createHold(hold(f, { enquiryId: f.enquiryIds[1], designerId: f.designerIds[1], startsAt: t("13:00"), endsAt: t("14:00") }));
+      if (!a.ok || !b.ok) throw new Error();
+      await f.repo.confirm(a.booking.id, "ev-a"); await f.repo.confirm(b.booking.id, "ev-b");
+      expect(await f.repo.markConsultationHeld(f.enquiryIds[0])).toBe(1);
+      expect((await f.repo.getBooking(a.booking.id))!.status).toBe("attended");
+      expect((await f.repo.getBooking(b.booking.id))!.status).toBe("confirmed");
+      expect(await f.repo.markConsultationHeld(f.enquiryIds[0])).toBe(0);   // already done
+      expect(await f.repo.markConsultationHeld(f.enquiryIds[2])).toBe(0);   // no booking
+      await f.repo.cancel(b.booking.id);
+      expect(await f.repo.markConsultationHeld(f.enquiryIds[1])).toBe(0);   // cancelled stays cancelled
+      expect((await f.repo.getBooking(b.booking.id))!.status).toBe("cancelled");
+    });
   });
 }

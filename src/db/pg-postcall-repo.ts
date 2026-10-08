@@ -65,8 +65,29 @@ export class PgPostCallRepo implements PostCallRepo {
     const { rows } = await this.db.query("select hubspot_contact_id, hubspot_deal_id from crm_links where enquiry_id = $1", [enquiryId]);
     return rows[0] ? { contactId: rows[0].hubspot_contact_id as string, dealId: rows[0].hubspot_deal_id as string } : null;
   }
-  async saveCrmLink(enquiryId: string, link: { contactId: string; dealId: string }) {
-    await this.db.query("insert into crm_links(enquiry_id, hubspot_contact_id, hubspot_deal_id, synced_at) values ($1,$2,$3,now()) on conflict (enquiry_id) where enquiry_id is not null do nothing", [enquiryId, link.contactId, link.dealId]);
+  async saveCrmLink(enquiryId: string, link: { contactId: string; dealId: string }, at: Date = new Date()) {
+    await this.db.query("insert into crm_links(enquiry_id, hubspot_contact_id, hubspot_deal_id, stage, stage_changed_at, synced_at) values ($1,$2,$3,'new',$4::timestamptz,$4::timestamptz) on conflict (enquiry_id) where enquiry_id is not null do nothing", [enquiryId, link.contactId, link.dealId, iso(at)]);
+  }
+  async dueCrmLinks(now: Date, limit: number) {
+    const { rows } = await this.db.query(
+      `select l.enquiry_id, l.hubspot_deal_id, l.stage, l.deal_amount_inr from crm_links l
+       where l.is_demo = ${SCOPE} and l.enquiry_id is not null and l.hubspot_deal_id is not null
+         and (l.synced_at is null or l.synced_at <= $1::timestamptz - (case when l.stage in ('won','lost') then interval '6 hours' else interval '5 minutes' end))
+       order by l.synced_at nulls first, l.id limit $2`, [iso(now), limit]);
+    return rows.map((r) => ({ enquiryId: r.enquiry_id as string, dealId: r.hubspot_deal_id as string, stage: (r.stage as string) ?? null, dealAmountInr: num(r.deal_amount_inr) }));
+  }
+  async recordDealSync(enquiryId: string, u: { at: Date; stage?: string; amountInr?: number | null }) {
+    await this.db.query(
+      `update crm_links set synced_at = $2::timestamptz,
+         stage_changed_at = case when $3::text is not null and stage is distinct from $3::text then $2::timestamptz else stage_changed_at end,
+         stage = coalesce($3::text, stage),
+         deal_amount_inr = case when $4::boolean then $5::numeric else deal_amount_inr end
+       where enquiry_id = $1`, [enquiryId, iso(u.at), u.stage ?? null, u.amountInr !== undefined, u.amountInr ?? null]);
+  }
+  async getCrmLinkState(enquiryId: string) {
+    const { rows } = await this.db.query("select stage, deal_amount_inr, stage_changed_at, synced_at from crm_links where enquiry_id = $1", [enquiryId]);
+    const r = rows[0];
+    return r ? { stage: (r.stage as string) ?? null, dealAmountInr: num(r.deal_amount_inr), stageChangedAt: date(r.stage_changed_at), syncedAt: date(r.synced_at) } : null;
   }
 
   async updateCaller(callerId: string, patch: { name?: string; email?: string; language?: string }) {

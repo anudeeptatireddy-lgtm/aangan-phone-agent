@@ -157,5 +157,47 @@ export function postCallRepoContract(name: string, make: () => Promise<PostCallR
       await repo.markOutbox(bad.id, "failed", "boom");         // given up
       expect(await repo.pendingOutbox(["hubspot_deal"], 10)).toHaveLength(0);
     });
+
+    describe("CRM links (the HubSpot deal for an enquiry, and what we last read from it)", () => {
+      const link = async (at: string) => {
+        const e = await repo.upsertEnquiry(enquiry());
+        await repo.saveCrmLink(e.id, { contactId: "c1", dealId: "d1" }, d(at));
+        return e.id;
+      };
+      it("a new link starts at stage 'new', is read at once by neither side of the clock until 5 minutes have passed, and is then due", async () => {
+        const id = await link("2026-10-07T05:00:00Z");
+        expect(await repo.dueCrmLinks(d("2026-10-07T05:04:59Z"), 10)).toEqual([]);
+        expect(await repo.dueCrmLinks(d("2026-10-07T05:05:00Z"), 10)).toEqual([{ enquiryId: id, dealId: "d1", stage: "new", dealAmountInr: null }]);
+      });
+      it("saving a link twice keeps the first (a retried deal job never makes a second link)", async () => {
+        const id = await link("2026-10-07T05:00:00Z");
+        await repo.saveCrmLink(id, { contactId: "c2", dealId: "d2" }, d("2026-10-07T06:00:00Z"));
+        expect(await repo.getCrmLink(id)).toEqual({ contactId: "c1", dealId: "d1" });
+      });
+      it("recordDealSync stores the stage and amount, stamps when the stage CHANGED, and a later read of the same stage does not move that time", async () => {
+        const id = await link("2026-10-07T05:00:00Z");
+        await repo.recordDealSync(id, { at: d("2026-10-07T06:00:00Z"), stage: "quote_sent", amountInr: 2_600_000 });
+        expect(await repo.getCrmLinkState(id)).toMatchObject({ stage: "quote_sent", dealAmountInr: 2_600_000, stageChangedAt: d("2026-10-07T06:00:00Z"), syncedAt: d("2026-10-07T06:00:00Z") });
+        await repo.recordDealSync(id, { at: d("2026-10-07T07:00:00Z"), stage: "quote_sent" });
+        expect(await repo.getCrmLinkState(id)).toMatchObject({ stage: "quote_sent", dealAmountInr: 2_600_000, stageChangedAt: d("2026-10-07T06:00:00Z"), syncedAt: d("2026-10-07T07:00:00Z") });
+      });
+      it("leaving stage and amount out leaves them alone (an unknown stage or a blank amount never wipes what we know); null clears an amount", async () => {
+        const id = await link("2026-10-07T05:00:00Z");
+        await repo.recordDealSync(id, { at: d("2026-10-07T06:00:00Z"), stage: "won", amountInr: 100 });
+        await repo.recordDealSync(id, { at: d("2026-10-07T07:00:00Z") });
+        expect(await repo.getCrmLinkState(id)).toMatchObject({ stage: "won", dealAmountInr: 100, syncedAt: d("2026-10-07T07:00:00Z") });
+        await repo.recordDealSync(id, { at: d("2026-10-07T08:00:00Z"), amountInr: null });
+        expect((await repo.getCrmLinkState(id))!.dealAmountInr).toBeNull();
+      });
+      it("open deals are read every 5 minutes, won and lost deals every 6 hours; the longest-unread comes first; the limit holds", async () => {
+        const open = await link("2026-10-07T05:00:00Z");
+        const won = await repo.upsertEnquiry(enquiry()); await repo.saveCrmLink(won.id, { contactId: "c", dealId: "dw" }, d("2026-10-07T05:00:00Z"));
+        await repo.recordDealSync(won.id, { at: d("2026-10-07T05:00:00Z"), stage: "won" });
+        const t = d("2026-10-07T05:10:00Z");
+        expect((await repo.dueCrmLinks(t, 10)).map((x) => x.enquiryId)).toEqual([open]);
+        expect((await repo.dueCrmLinks(d("2026-10-07T11:00:00Z"), 10)).map((x) => x.enquiryId).sort()).toEqual([open, won.id].sort());
+        expect(await repo.dueCrmLinks(d("2026-10-07T11:00:00Z"), 1)).toHaveLength(1);
+      });
+    });
   });
 }

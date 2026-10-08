@@ -49,6 +49,7 @@ export class InMemoryBookingRepo implements BookingRepo {
   async confirm(id: string, calendarEventId: string) {
     const b = this.must(id); b.status = "confirmed"; b.calendarEventId = calendarEventId; return { ...b };
   }
+  async markConsultationHeld(enquiryId: string) { let n = 0; for (const b of this.bookings) if (b.enquiryId === enquiryId && b.status === "confirmed") { b.status = "attended"; n++; } return n; }
   async cancel(id: string) { const b = this.must(id); b.status = "cancelled"; b.idempotencyKey = null; }
   async getBooking(id: string) { const b = this.bookings.find((x) => x.id === id); return b ? { ...b } : null; }
   async bookingForEnquiry(enquiryId: string) { const b = this.bookings.find((x) => x.enquiryId === enquiryId && live(x)); return b ? { ...b } : null; }

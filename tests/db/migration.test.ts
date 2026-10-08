@@ -167,10 +167,16 @@ describe("dashboard additions (migration 0005)", () => {
     await expect(db.query("insert into crm_links(stage) values ('negotiating')")).rejects.toThrow(/check constraint/i);
     await db.query("insert into crm_links(stage, deal_amount_inr) values ('won', 1200000)");
   });
-  it("the HubSpot deal amount is referenced by NOTHING that talks to a caller, a model, a log or a message (hard rule 1)", async () => {
+  it("the HubSpot deal amount is referenced by NOTHING that talks to a caller, a model, a log or a message (hard rule 1): only these exact files may name it", async () => {
     const { execSync } = await import("node:child_process");
-    const hits = execSync("grep -rl 'deal_amount_inr\\|dealAmountInr' src || true").toString().split("\n").filter(Boolean);
-    for (const f of hits) expect(f, f).toMatch(/^src\/(db|core\/dashboard|server\/handlers\/dashboard|app\/dashboard|app\/api\/dashboard)/);
+    const hits = execSync("grep -rl 'deal_amount_inr\\|dealAmountInr' src || true").toString().split("\n").filter(Boolean).sort();
+    expect(hits).toEqual([
+      "src/app/dashboard/calls/[id]/page.tsx",   // the authenticated dashboard
+      "src/core/crm/stage-sync.ts",              // copies the designers' amount from HubSpot into storage
+      "src/core/postcall/repo.ts",               // the storage interface
+      "src/db/dash-calls.ts", "src/db/dash-metrics.ts",   // dashboard queries
+      "src/db/pg-postcall-repo.ts", "src/server/postcall-repo.ts",   // the two storages
+    ]);
   });
   it("phone reveals are logged in a table only the service role can touch", async () => {
     const g = await rows("select 1 from information_schema.role_table_grants where table_name='phone_reveals' and grantee in ('anon','authenticated')");

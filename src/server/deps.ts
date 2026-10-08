@@ -26,6 +26,7 @@ import type { PostCallRepo } from "@/core/postcall/repo";
 import type { CalBookingStore } from "@/core/calcom/types";
 import { InMemoryCalBookingStore } from "./calcom-store";
 import { CallRouter, toEnquiryRecord } from "@/core/calcom/router";
+import { CrmStageSync, parseStageMap } from "@/core/crm/stage-sync";
 import { VaaniVoiceClient, type VaaniVoicePort } from "@/adapters/voice/vaanivoice/client";
 import { FakeVaaniVoiceClient } from "@/adapters/voice/vaanivoice/fake";
 import { mergeVaaniEntities } from "@/adapters/voice/vaanivoice/entities";
@@ -73,6 +74,10 @@ export interface Deps {
   dashboard: DashboardSource;
   calStore: CalBookingStore;
   router: CallRouter;
+  /** Copies the designers' progress on each HubSpot deal (stage, quote amount) into our tables. Run by the tick. */
+  crmSync: CrmStageSync;
+  /** A real HubSpot connection (token, pipeline and stage ids) or the dev/test fake. False in production without them: the sync then does nothing instead of failing every minute. */
+  crmConfigured: boolean;
   vaaniVoice: VaaniVoicePort;
   fakeVaaniVoice: FakeVaaniVoiceClient | undefined; // only when the in-memory fake is in use (dev/test)
   /** A real Vaani key (or the dev/test fake). False in production without VAANIVOICE_API_KEY: the reconciler then does nothing instead of failing every minute. */
@@ -163,16 +168,17 @@ export function makeDeps(o: MakeDepsOptions = {}): Deps {
   let crm: CrmPort, fakeCrm: FakeCrm | undefined;
   if (env.HUBSPOT_ACCESS_TOKEN && env.HUBSPOT_PIPELINE_ID && env.HUBSPOT_DEAL_STAGE_ID) crm = new HubSpotCrm({ token: env.HUBSPOT_ACCESS_TOKEN, pipelineId: env.HUBSPOT_PIPELINE_ID, dealStageId: env.HUBSPOT_DEAL_STAGE_ID });
   else if (env.NODE_ENV !== "production") crm = fakeCrm = new FakeCrm();
-  else crm = { createDealForEnquiry: unconfigured("HubSpot (HUBSPOT_ACCESS_TOKEN / HUBSPOT_PIPELINE_ID / HUBSPOT_DEAL_STAGE_ID)") };
+  else { const no = unconfigured("HubSpot (HUBSPOT_ACCESS_TOKEN / HUBSPOT_PIPELINE_ID / HUBSPOT_DEAL_STAGE_ID)"); crm = { createDealForEnquiry: no, readDeals: no, dealStages: no, dealPipelines: no }; }
   let email: EmailPort, fakeEmail: FakeEmail | undefined;
   if (env.RESEND_API_KEY && env.RESEND_FROM) email = new ResendEmail({ apiKey: env.RESEND_API_KEY, from: env.RESEND_FROM, replyTo: env.RESEND_REPLY_TO });
   else if (env.NODE_ENV !== "production") email = fakeEmail = new FakeEmail();
   else email = { send: unconfigured("Resend (RESEND_API_KEY / RESEND_FROM)") };
+  const crmSync = new CrmStageSync({ repo: postcall, bookings: bookingRepo, crm, now, stageMap: parseStageMap(env.HUBSPOT_STAGE_MAP), startStageId: env.HUBSPOT_DEAL_STAGE_ID, pipelineId: env.HUBSPOT_PIPELINE_ID });
   const outbox = new OutboxRunner({ repo: postcall, bookings: bookingRepo, notifier, crm, email, now });
   const alerts = new AlertDrainer({ repo: postcall, notifier, designLeadChat: async () => (await bookingRepo.listActiveDesigners()).find((x) => x.isDesignLead && x.telegramChatId != null)?.telegramChatId ?? null,
     ownerChatId: env.OWNER_TELEGRAM_CHAT_ID ? Number(env.OWNER_TELEGRAM_CHAT_ID) : undefined, nikhilChatId: env.NIKHIL_TELEGRAM_CHAT_ID ? Number(env.NIKHIL_TELEGRAM_CHAT_ID) : undefined });
   return { env, repo: new InMemoryRepo(env.PHONE_HASH_PEPPER), now, hours, designerNames: o.designerNames ?? [],
-    enquiries, bookingRepo, calendar, fakeCalendar, notifier, fakeNotifier, handoff, crm, email, fakeCrm, fakeEmail, outbox, dashboard: db ? new PgDashboardSource(db) : new InMemoryDashboardSource(postcall as InMemoryPostCallRepo, bookingRepo as InMemoryBookingRepo), db, calStore, router, vaaniVoice, fakeVaaniVoice, vaaniVoiceConfigured: !!env.VAANIVOICE_API_KEY || !!fakeVaaniVoice, booking, postcall, extractor, fakeExtractor, pipeline, alerts };
+    enquiries, bookingRepo, calendar, fakeCalendar, notifier, fakeNotifier, handoff, crm, email, fakeCrm, fakeEmail, outbox, dashboard: db ? new PgDashboardSource(db) : new InMemoryDashboardSource(postcall as InMemoryPostCallRepo, bookingRepo as InMemoryBookingRepo), db, calStore, router, crmSync, crmConfigured: !!(env.HUBSPOT_ACCESS_TOKEN && env.HUBSPOT_PIPELINE_ID && env.HUBSPOT_DEAL_STAGE_ID) || !!fakeCrm, vaaniVoice, fakeVaaniVoice, vaaniVoiceConfigured: !!env.VAANIVOICE_API_KEY || !!fakeVaaniVoice, booking, postcall, extractor, fakeExtractor, pipeline, alerts };
 }
 
 // Process-wide singleton for the Next dev server (state is in-memory until Supabase lands).

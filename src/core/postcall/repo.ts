@@ -91,7 +91,13 @@ export interface PostCallRepo {
   /** The caller's real details for outbound integrations (CRM). The phone is decrypted here and must never be logged. */
   callerContact(callerId: string): Promise<{ phone: string; name: string | null; email: string | null } | null>;
   getCrmLink(enquiryId: string): Promise<{ contactId: string; dealId: string } | null>;
-  saveCrmLink(enquiryId: string, link: { contactId: string; dealId: string }): Promise<void>;
+  /** `at` is when the deal was created (the first read of it is due 5 minutes later). Saving twice keeps the first link. */
+  saveCrmLink(enquiryId: string, link: { contactId: string; dealId: string }, at?: Date): Promise<void>;
+  /** Deals due to be read back from HubSpot: open ones every 5 minutes, won/lost every 6 hours, longest-unread first. */
+  dueCrmLinks(now: Date, limit: number): Promise<{ enquiryId: string; dealId: string; stage: string | null; dealAmountInr: number | null }[]>;
+  /** Record a read of the deal. `stage` / `amountInr` left out = unchanged; `amountInr: null` clears it. "Stage changed at" moves only when the stage really changed. */
+  recordDealSync(enquiryId: string, u: { at: Date; stage?: string; amountInr?: number | null }): Promise<void>;
+  getCrmLinkState(enquiryId: string): Promise<{ stage: string | null; dealAmountInr: number | null; stageChangedAt: Date | null; syncedAt: Date | null } | null>;
   upsertCall(vendorCallId: string, patch: CallPatch): Promise<CallRow>;
   getCall(vendorCallId: string): Promise<CallRow | null>;
   recentCallsForCaller(callerId: string, since: Date): Promise<CallRow[]>;

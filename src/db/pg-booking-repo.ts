@@ -93,6 +93,10 @@ export class PgBookingRepo implements BookingRepo {
     const { rows } = await this.db.query("select * from bookings where idempotency_key=$1 and status in ('held','confirmed')", [key]);
     return rows[0] ? bookingOf(rows[0]) : null;
   }
+  async markConsultationHeld(enquiryId: string) {
+    const { rows } = await this.db.query("update bookings set status='attended' where enquiry_id=$1 and status='confirmed' returning id", [enquiryId]);
+    return rows.length;
+  }
   async touchLastAssigned(designerId: string, at: Date) { await this.db.query("update designers set last_assigned_at=$2::timestamptz where id=$1", [designerId, iso(at)]); }
 
   async createHandoff(h: { bookingId: string; designerId: string; dueAt: Date; attemptNo?: number }) {

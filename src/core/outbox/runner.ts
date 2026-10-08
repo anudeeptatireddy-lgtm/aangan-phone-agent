@@ -57,7 +57,7 @@ export class OutboxRunner {
       contact: { email: caller?.email ?? undefined, phone: caller?.phone, firstName: first, lastName: rest.join(" ") || undefined },
       deal: { name, description },
     });
-    await this.d.repo.saveCrmLink(enquiryId, r);
+    await this.d.repo.saveCrmLink(enquiryId, r, this.d.now());
   }
 
   private async confirmationEmail(item: OutboxRow) {
