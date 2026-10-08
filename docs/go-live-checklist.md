@@ -10,7 +10,7 @@ Facts marked *(Vaani docs)*, *(Cal.com docs)* and so on were read from the vendo
 1. **The deployed app needs a database.** Without `DATABASE_URL` a deployed app falls back to in-memory storage, which is wiped between requests on Vercel. So Supabase comes before any real call.
 2. **The app needs the Gemini key to process any call.** In production the post-call pipeline only exists when the Gemini extractor is configured (paid tier, confirmed). Without it every Vaani webhook answers 503 `extractor_not_configured`.
 3. **Cron every minute needs Vercel Pro.** `vercel.json` schedules `/api/cron/tick` every minute. On Hobby, Vercel refuses the deployment *(Vercel docs: "Cron expressions that would run more frequently [than daily] will fail during deployment")*. The tick runs alerts, the HubSpot/email outbox and the 30-minute designer timeout. The first call does not depend on it, but everything after does.
-4. **Google is parked, but it leaves two limits** (section 4): each designer row still needs *some* `calendar_id`, and a designer who does not accept in 30 working minutes is **not** auto-reassigned (the design lead is alerted instead).
+4. **Google is parked, and that is fine.** With no `GOOGLE_SERVICE_ACCOUNT_JSON` in production the app treats the Cal.com booking as the booking: designers need no calendar id, and a designer who declines or does not accept in 30 working minutes is replaced by the next free designer, judged from our own bookings table (fixed 2026-10-08).
 
 ---
 
@@ -91,7 +91,7 @@ Until HubSpot and Resend are set, each deal and each email fails five times and 
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | **Parked.** Booking now goes through Vaani's Cal.com integration, and the app never reads or writes a Google calendar for those bookings. Leave empty. |
 | `GOOGLE_IMPERSONATE_USER` | **Parked.** Leave empty. |
 
-Two consequences are listed in section 4.
+With these empty in production, designers do not need a `calendar_id` and reassignment works without Google (section 4). In development and tests the in-memory fake calendar is still used.
 
 ### Dashboard, cron, and what `.env.example` mentions but the code does not read
 
@@ -164,9 +164,9 @@ Two consequences are listed in section 4.
   ```sql
   update designers set active = false where is_test;
   insert into designers (name, areas, project_types, calendar_id, telegram_chat_id, is_principal, is_design_lead, active, is_test)
-  values ('Designer name', '{}', array['home','office'], 'no-google-calendar', 123456789, false, false, true, false);
+  values ('Designer name', '{}', array['home','office'], null, 123456789, false, false, true, false);
   ```
-  `areas '{}'` means any area. Exactly one designer should have `is_design_lead = true` (alerts go to them) and, if you want a principal, one `is_principal = true`. `telegram_chat_id` is the number from 2.3. **`calendar_id` must be non-empty even though Google is parked** (the placeholder text above is fine): see section 4.
+  `areas '{}'` means any area. Exactly one designer should have `is_design_lead = true` (alerts go to them) and, if you want a principal, one `is_principal = true`. `telegram_chat_id` is the number from 2.3. Leave `calendar_id` null: Google is parked and the app does not need it. (Add each designer's Google calendar id later only if you switch Google on.)
 - [ ] **Copy `DATABASE_URL`** (Connect → Transaction pooler, add `?sslmode=require`). If the first deploy cannot connect and complains about a certificate, tell me: it is a one-line change in `src/db/open.ts`.
 - [ ] Row-level security is on for every table with no public access; the app connects with the connection string's own login (the same kind of login the local Supabase test run used). Never put the project's public ("anon") key anywhere.
 
@@ -187,7 +187,7 @@ Two consequences are listed in section 4.
 Steps marked **(can wait)** are *not* needed for the first call.
 
 1. **Generate the secrets** (Part 1 table). ~5 minutes.
-2. **Supabase** (2.6): create the project in Mumbai, `db push`, load the seed, add the designer rows (use placeholders for `telegram_chat_id` until step 4). Copy `DATABASE_URL`.
+2. **Supabase** (2.6): create the project in Mumbai, `db push`, load the seed, add the designer rows (use placeholder numbers for `telegram_chat_id` until step 4). Copy `DATABASE_URL`.
 3. **Gemini:** create a key on a billed project; `GEMINI_PAID_TIER_CONFIRMED=true`.
 4. **Telegram** (2.3): make the bot, everyone presses Start, read chat ids, fill the designers' `telegram_chat_id` and `OWNER_TELEGRAM_CHAT_ID`. *(Do not set the webhook yet.)*
 5. **Vaani, part 1:** generate the API key (`VAANIVOICE_API_KEY`).
@@ -210,8 +210,8 @@ Steps marked **(can wait)** are *not* needed for the first call.
 
 ## 4. Known limits (engineering follow-ups, not owner steps)
 
-1. **Google parked: designers need a placeholder `calendar_id`.** The booking service only treats a designer as eligible if they have a calendar id, even though the Cal.com path never reads one. Without the placeholder every booking fails with "no designer" and raises an urgent alert. Fix (small): make eligibility ignore the calendar when Google is not configured. Not done yet.
-2. **Google parked: no automatic reassignment.** When a designer declines or does not accept in 30 working minutes, reassignment checks free time on Google calendars, which are not configured, so it cannot pick a new designer. The design lead is alerted to reassign by hand. Fix: reassign using our own bookings table only when Google is not configured. Not done yet.
+1. ~~Google parked: designers need a placeholder `calendar_id`.~~ **Fixed 2026-10-08.** In production without `GOOGLE_SERVICE_ACCOUNT_JSON`, a designer with no calendar id is eligible for Cal.com bookings.
+2. ~~Google parked: no automatic reassignment.~~ **Fixed 2026-10-08.** A designer who declines or does not accept in 30 working minutes is replaced by the next eligible designer who is free in our own bookings table; the booking keeps its Cal.com id; no calendar is read, written or deleted. If everyone has been tried, the design lead (then the owner) is alerted, as before. Switching Google on later restores calendar-aware behaviour with no code change.
 3. **Vaani retries are not documented.** A webhook that fails (503) may never be retried. The owner is alerted once per call; a periodic re-read of Vaani's call history would close the gap. Not built.
 4. **The phone-number question reaching the Cal.com booking is unverified** (2.2). The first test call answers it.
 5. **Hosted storage of Telegram/Vaani delivery de-duplication is per server instance** (the webhook inbox is still in memory). Button presses are safe to repeat; the cost of the gap is a duplicate log line.

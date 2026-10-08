@@ -96,6 +96,12 @@ export const TEST_DESIGNERS: Designer[] = [
   { id: "test-c", name: "TEST Designer C", areas: [], projectTypes: ["home", "office"], calendarId: "fake-cal-c", telegramChatId: 1003, isPrincipal: false, isDesignLead: false, active: true, lastAssignedAt: null, maxPerDay: null },
 ];
 
+/**
+ * Is a calendar in use for booking? Yes with a real Google key, and in any non-production run (the in-memory fake). In production WITHOUT a Google key
+ * (bookings come from Cal.com) there is none: designers then need no calendar id and reassignment judges free time from our own bookings only.
+ */
+export const googleCalendarInUse = (env: { NODE_ENV: string; GOOGLE_SERVICE_ACCOUNT_JSON?: string }) => !!env.GOOGLE_SERVICE_ACCOUNT_JSON || env.NODE_ENV !== "production";
+
 export interface MakeDepsOptions { env?: Record<string, string | undefined>; now?: () => Date; hours?: HoursConfig; designerNames?: string[];
   designers?: Designer[]; bookingConfig?: BookingConfig; pipelineMode?: "live_tools" | "prompt_only"; db?: SqlClient }
 
@@ -119,7 +125,8 @@ export function makeDeps(o: MakeDepsOptions = {}): Deps {
   if (env.TELEGRAM_BOT_TOKEN) notifier = new TelegramNotifier({ token: env.TELEGRAM_BOT_TOKEN });
   else if (env.NODE_ENV !== "production") notifier = fakeNotifier = new FakeNotifier();
   else notifier = new UnconfiguredNotifier();
-  const booking = new BookingService({ repo: bookingRepo, calendar, notifier, now, hours, config: o.bookingConfig ?? DEFAULT_BOOKING_CONFIG });
+  const calendarInUse = googleCalendarInUse(env);
+  const booking = new BookingService({ repo: bookingRepo, calendar, notifier, now, hours, config: o.bookingConfig ?? DEFAULT_BOOKING_CONFIG, requireCalendar: calendarInUse ? undefined : false });
 
   // Extractor: the real Gemini adapter only with a key AND an explicit paid-tier confirmation (an unconfirmed key disables extraction instead of sending caller data to a tier that may train on it). Without a key: a scripted fake outside production.
   let extractor: ExtractionPort | undefined, fakeExtractor: FakeExtractor | undefined;
@@ -130,7 +137,7 @@ export function makeDeps(o: MakeDepsOptions = {}): Deps {
   const enquiries = new InMemoryEnquiryStore();
   if (db && !env.PHONE_ENC_KEY) throw new Error("PHONE_ENC_KEY is required when a database is used (caller phone numbers are stored encrypted)");
   const postcall: PostCallRepo = db ? new PgPostCallRepo(db, { pepper: env.PHONE_HASH_PEPPER, encKey: env.PHONE_ENC_KEY! }) : new InMemoryPostCallRepo(env.PHONE_HASH_PEPPER);
-  const handoff = new HandoffService({ repo: bookingRepo, calendar, notifier, now, hours, config: o.bookingConfig ?? DEFAULT_BOOKING_CONFIG,
+  const handoff = new HandoffService({ repo: bookingRepo, calendar, useCalendar: calendarInUse, notifier, now, hours, config: o.bookingConfig ?? DEFAULT_BOOKING_CONFIG,
     // Enquiries made live are in `enquiries`; those from post-call processing (prompt-only calls) are in the post-call repo. Reassignment needs both.
     loadEnquiry: async (id) => {
       const live = enquiries.get(id);

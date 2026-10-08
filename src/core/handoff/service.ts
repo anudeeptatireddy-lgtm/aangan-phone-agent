@@ -13,6 +13,11 @@ import { addWorkingMinutes } from "../booking/working-minutes";
 export interface HandoffDeps {
   repo: BookingRepo;
   calendar: CalendarPort;
+  /**
+   * false = no Google calendar is configured (bookings come from Cal.com): a designer needs no calendar id, free time is judged from our own bookings table
+   * only, and no calendar event is created or deleted on reassignment. Default true.
+   */
+  useCalendar?: boolean;
   notifier: NotifierPort;
   now: () => Date;
   config: BookingConfig;
@@ -115,12 +120,13 @@ export class HandoffService {
     const oldDesigner = await this.d.repo.getDesigner(old.designerId);
     const candidates = (await this.d.repo.listActiveDesigners()).filter((x) =>
       !tried.has(x.id) && x.telegramChatId != null &&
-      isEligible(x, { location: enquiry.input.location, project_type: enquiry.input.project_type }, { principalOnly: booking.wantsPrincipal }));
+      isEligible(x, { location: enquiry.input.location, project_type: enquiry.input.project_type }, { principalOnly: booking.wantsPrincipal, requireCalendar: this.d.useCalendar === false ? false : undefined }));
 
     const free = await this.freeAmong(candidates, booking).catch((e) => { log("error", "handoff: free/busy failed", { error: String(e) }); return [] as Designer[]; });
     for (const x of pickInOrder(free)) {
       let eventId: string;
-      try {
+      if (this.d.useCalendar === false) eventId = booking.calendarEventId ?? `unassigned:${booking.id}`; // the booking stays the Cal.com one
+      else try {
         ({ eventId } = await this.d.calendar.createEvent({
           calendarId: x.calendarId!, start: booking.startsAt, end: booking.endsAt,
           summary: `Aangan consultation${enquiry.callerName ? ` · ${enquiry.callerName}` : ""}`,
@@ -132,9 +138,9 @@ export class HandoffService {
         continue;
       }
       const moved = await this.d.repo.reassignBooking(booking.id, x.id, eventId);
-      if (!moved.ok) { await this.d.calendar.deleteEvent(x.calendarId!, eventId).catch(() => undefined); continue; }
+      if (!moved.ok) { if (this.d.useCalendar !== false) await this.d.calendar.deleteEvent(x.calendarId!, eventId).catch(() => undefined); continue; }
 
-      if (oldDesigner?.calendarId && booking.calendarEventId) {
+      if (this.d.useCalendar !== false && oldDesigner?.calendarId && booking.calendarEventId) {
         await this.d.calendar.deleteEvent(oldDesigner.calendarId, booking.calendarEventId).catch((e) => log("error", "handoff: old event not deleted", { error: String(e) }));
       }
       const now = this.d.now();
@@ -161,7 +167,7 @@ export class HandoffService {
     if (!cands.length) return [];
     const buf = this.d.config.bufferMinutes;
     const from = new Date(b.startsAt.getTime() - buf * 60_000), to = new Date(b.endsAt.getTime() + buf * 60_000);
-    const cal = await this.d.calendar.freeBusy(cands.map((x) => x.calendarId!), from, to);
+    const cal = this.d.useCalendar === false ? new Map<string, { start: Date; end: Date }[]>() : await this.d.calendar.freeBusy(cands.map((x) => x.calendarId!), from, to);
     const mine = await this.d.repo.busyForDesigners(cands.map((x) => x.id), from, to);
     return cands.filter((x) => !overlapsWithBuffer({ start: b.startsAt, end: b.endsAt }, [...(cal.get(x.calendarId!) ?? []), ...(mine.get(x.id) ?? [])], buf));
   }
