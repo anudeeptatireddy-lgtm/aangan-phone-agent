@@ -1,5 +1,7 @@
 # Next session
 
+**Go-live:** see `docs/go-live-checklist.md` (env vars, setup steps in order, and the shortest path to a first real test call). Engineering follow-ups from it are in its section 4 (Google-parked eligibility and reassignment, Vaani retry gap, HubSpot stage sync).
+
 ## CEO dashboard session (2026-10-07), latest
 **Built:** Postgres wiring (`makeDeps({ db })`, `src/db/open.ts`: `DATABASE_URL` = Postgres, `LOCAL_DB_DIR` = local PGlite with migrations + seed applied on first use), migration 0005 (demo marker, funnel stages, deal value, phone-reveal log), every metric in SQL (`src/db/dash-metrics.ts`, `dash-calls.ts`), API under `/api/dashboard/*` (login-gated, date range, live/demo), five pages (Overview, Calls + CSV, Call detail, Designers, Weekly review), `pnpm seed:demo` / `seed:demo:reset`, screenshots in `docs/screenshots/`. 953 tests passing, 12 skipped.
 **Open locally:** stop other dev servers, `npx next dev -p 3000` (or `corepack pnpm dev`), open http://localhost:3000/dashboard (no login outside production), then press **Demo**. Only one process may hold `data/local/pglite` at a time: stop `next dev` before `seed:demo`.
