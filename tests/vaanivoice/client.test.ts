@@ -55,3 +55,48 @@ describe("findInHistory", () => {
     expect(many.urls).toHaveLength(2);
   });
 });
+
+describe("recentCalls (what the reconciler reads: the history rows that started since a time)", () => {
+  const row = (id: string, start: string) => ({ call_id: id, call_type: "Inbound", direction: "Incoming", Start_time: start, End_time: start, post_processing_status: "completed" });
+  const page = (rows: unknown[], n: number, total: number) => () => json({ data: rows, pagination: { page: n, total_pages: total, has_next: n < total } });
+  const SINCE = new Date("2026-10-05T00:00:00Z");
+
+  it("one page: returns only rows that started since the cutoff, asking for the biggest documented page (200)", async () => {
+    const { c, urls, headers } = make([page([row("new", "2026-10-07T05:00:00Z"), row("old", "2026-10-01T05:00:00Z")], 1, 1)]);
+    expect((await c.recentCalls(SINCE)).map((r) => r.call_id)).toEqual(["new"]);
+    expect(urls[0]).toBe("https://api.vaanivoice.ai/api/call-history?page=1&page_size=200");
+    expect(headers[0]!["x-api-key"]).toBe(KEY);
+  });
+  it("newest first (as the first page shows): keeps reading older pages until a whole page is older than the cutoff, then stops", async () => {
+    const { c, urls } = make([
+      page([row("a", "2026-10-07T05:00:00Z"), row("b", "2026-10-06T05:00:00Z")], 1, 4),
+      page([row("c", "2026-10-05T05:00:00Z"), row("d", "2026-10-04T05:00:00Z")], 2, 4),
+      page([row("e", "2026-10-03T05:00:00Z"), row("f", "2026-10-02T05:00:00Z")], 3, 4), // entirely old: stop here, never ask for page 4
+    ]);
+    expect((await c.recentCalls(SINCE)).map((r) => r.call_id)).toEqual(["a", "b", "c"]);
+    expect(urls).toHaveLength(3);
+  });
+  it("oldest first (the docs do not say which): starts from the LAST page and walks backwards, so recent calls are never missed", async () => {
+    const { c, urls } = make([
+      page([row("a", "2026-09-01T05:00:00Z"), row("b", "2026-09-02T05:00:00Z")], 1, 3),
+      page([row("e", "2026-10-06T05:00:00Z"), row("f", "2026-10-07T05:00:00Z")], 3, 3),
+      page([row("c", "2026-10-03T05:00:00Z"), row("d", "2026-10-05T12:00:00Z")], 2, 3),
+    ]);
+    const got = (await c.recentCalls(SINCE)).map((r) => r.call_id).sort();
+    expect(got).toEqual(["d", "e", "f"]);
+    expect(urls.map((u) => /page=(\d+)/.exec(u)![1])).toEqual(["1", "3", "2"]);
+  });
+  it("is capped (maxPages) and de-duplicates a call that shifted between pages while reading", async () => {
+    const { c, urls } = make([
+      page([row("a", "2026-10-07T05:00:00Z"), row("b", "2026-10-06T05:00:00Z")], 1, 9),
+      page([row("b", "2026-10-06T05:00:00Z"), row("c", "2026-10-06T01:00:00Z")], 2, 9),
+    ]);
+    expect((await c.recentCalls(SINCE, { maxPages: 2 })).map((r) => r.call_id)).toEqual(["a", "b", "c"]);
+    expect(urls).toHaveLength(2);
+  });
+  it("a refused request is an error naming the status, never the key", async () => {
+    const { c } = make([() => new Response("nope " + KEY, { status: 403 })]);
+    const e = await c.recentCalls(SINCE).then(() => new Error("none"), (x) => x as Error);
+    expect(e.message).toMatch(/403/); expect(e.message).not.toContain(KEY);
+  });
+});

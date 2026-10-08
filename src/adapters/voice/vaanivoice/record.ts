@@ -18,7 +18,7 @@ export function buildCallRecord(i: { callId: string; details: VaaniCallDetails; 
   return {
     vendor: "vaanivoice", vendorCallId: i.callId,
     callerPhone: inbound && h?.from_number && E164.test(h.from_number) ? h.from_number : undefined,
-    rangAt: started, answeredAt: started, endedAt: ended, durationS,
+    rangAt: started, answeredAt: started ?? (turns.length ? ended : undefined), endedAt: ended, durationS, // no history: a conversation means it was answered; the start time stays unknown
     endedReason: turns.some((t) => t.speaker === "caller") ? "completed" : "dropped",
     transcript: turns, recordingRef: h?.recording_api, vendorSummary: i.details.summary || undefined,
     voiceRateInrPerMin: durationS !== undefined ? i.ratePerMinInr : undefined,

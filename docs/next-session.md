@@ -1,6 +1,6 @@
 # Next session
 
-**Go-live:** see `docs/go-live-checklist.md` (env vars, setup steps in order, and the shortest path to a first real test call). Engineering follow-ups from it are in its section 4 (Vaani retry gap, HubSpot stage sync; the Google-parked eligibility and reassignment gaps are fixed).
+**Go-live:** see `docs/go-live-checklist.md` (env vars, setup steps in order, and the shortest path to a first real test call). Engineering follow-ups from it are in its section 4 (HubSpot stage sync; the Vaani retry gap is closed but depends on Vaani fixing `call-history`; the Google-parked eligibility and reassignment gaps are fixed).
 
 ## CEO dashboard session (2026-10-07), latest
 **Built:** Postgres wiring (`makeDeps({ db })`, `src/db/open.ts`: `DATABASE_URL` = Postgres, `LOCAL_DB_DIR` = local PGlite with migrations + seed applied on first use), migration 0005 (demo marker, funnel stages, deal value, phone-reveal log), every metric in SQL (`src/db/dash-metrics.ts`, `dash-calls.ts`), API under `/api/dashboard/*` (login-gated, date range, live/demo), five pages (Overview, Calls + CSV, Call detail, Designers, Weekly review), `pnpm seed:demo` / `seed:demo:reset`, screenshots in `docs/screenshots/`. 953 tests passing, 12 skipped.

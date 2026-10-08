@@ -26,6 +26,13 @@ describe("buildCallRecord", () => {
     expect(r.durationS).toBeUndefined();
     expect(r.voiceCostInr).toBeUndefined();
   });
+  it("without history but with a conversation, the call counts as answered (at its end) and no start time is invented", () => {
+    const r = buildCallRecord({ ...base, history: undefined });
+    expect(r.answeredAt).toBe("2026-10-07T05:05:30.000Z");
+    expect(r.rangAt).toBeUndefined();
+    const silent = buildCallRecord({ ...base, history: undefined, details: { ...details, transcription: "" } });
+    expect(silent.answeredAt).toBeUndefined(); // nothing was said by anyone: not claimed as answered
+  });
   it("a call where the caller never spoke is 'dropped'", () => {
     const r = buildCallRecord({ ...base, details: { ...details, transcription: "AGENT: Namaste, Aangan Studio." } });
     expect(r.endedReason).toBe("dropped");

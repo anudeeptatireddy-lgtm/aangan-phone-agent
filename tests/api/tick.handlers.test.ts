@@ -16,7 +16,7 @@ describe("GET /api/cron/tick", () => {
   it("runs every step and reports counts", async () => {
     const r = await handleTick(req(`Bearer ${CRON}`), mk());
     expect(r.status).toBe(200);
-    expect(await r.json()).toEqual({ ok: true, sweep: { timedOut: 0 }, retry: { sent: 0, failed: 0 }, outbox: { processed: 0, failed: 0 }, alerts: { sent: 0, failed: 0, skipped: 0 }, routing: { booked: 0, waiting: 0, flagged: 0, closed: 0, orphans: 0, errors: 0 } });
+    expect(await r.json()).toEqual({ ok: true, sweep: { timedOut: 0 }, retry: { sent: 0, failed: 0 }, outbox: { processed: 0, failed: 0 }, alerts: { sent: 0, failed: 0, skipped: 0 }, routing: { booked: 0, waiting: 0, flagged: 0, closed: 0, orphans: 0, errors: 0 }, vaani: { checked: 0, recovered: 0, waiting: 0, failedRecorded: 0 } });
   });
   it("one failing step does not stop the others", async () => {
     const d = mk();

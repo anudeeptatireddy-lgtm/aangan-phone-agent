@@ -1,11 +1,11 @@
 import { timingSafeEqual } from "node:crypto";
 import { log } from "@/lib/log";
-import { buildCallRecord, parseVaaniVoiceEvent } from "@/adapters/voice/vaanivoice/record";
+import { parseVaaniVoiceEvent } from "@/adapters/voice/vaanivoice/record";
+import { processVaaniCall } from "../vaanivoice-process";
 import type { Deps } from "../deps";
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 const same = (a: string, b: string) => { const x = Buffer.from(a), y = Buffer.from(b); return x.length === y.length && timingSafeEqual(x, y); };
-const INBOUND = /^(in|incoming)/i;
 
 /**
  * vaanivoice.ai end-of-call webhook. Vaani documents NO signature, so: (1) the URL carries an unguessable secret segment, and
@@ -33,20 +33,11 @@ export async function handleVaaniVoiceWebhook(req: Request, deps: Deps, secretSe
     return json(503, { error: reason });
   };
 
-  try {
-    const details = await deps.vaaniVoice.getCallDetails(id);
-    if (!details) return await fail("transcript_not_ready", "call_details has no transcript yet");
-    const history = await deps.vaaniVoice.findInHistory(id);
-    if (history && history.direction && !INBOUND.test(history.direction) && !/^inbound$/i.test(history.call_type ?? "")) {
-      log("warn", "vaanivoice_webhook: not an inbound call; ignored", { vendor_call_id: id }); // hard rule 5: we place no calls, and never treat one as an enquiry
-      return json(200, { ok: true, ignored: "not_inbound" });
-    }
-    const rate = deps.env.VAANIVOICE_RATE_INR_PER_MIN;
-    const result = await deps.pipeline.process(buildCallRecord({ callId: id, details, history, eventTimestamp: ev.timestamp, ratePerMinInr: rate, now: deps.now() }));
-    deps.repo.recordWebhookEvent(`vaanivoice:${id}`, ev.event, deps.now().toISOString());
-    log("info", "vaanivoice_webhook", { vendor_call_id: id, status: result.status, outcome: result.outcome, flags: result.flags });
-    return json(200, { ok: true, status: result.status, outcome: result.outcome, flags: result.flags }); // a summary only: no transcript, number or email
-  } catch (err) {
-    return fail("fetch_or_processing_error", String((err as Error).message ?? err));
-  }
+  const r = await processVaaniCall(deps, id, { eventTimestamp: ev.timestamp });
+  if (r.kind === "not_ready") return fail("transcript_not_ready", "call_details has no transcript yet");
+  if (r.kind === "error") return fail("fetch_or_processing_error", r.detail);
+  if (r.kind === "ignored") { log("warn", "vaanivoice_webhook: not an inbound call; ignored", { vendor_call_id: id }); return json(200, { ok: true, ignored: r.reason }); }
+  deps.repo.recordWebhookEvent(`vaanivoice:${id}`, ev.event, deps.now().toISOString());
+  log("info", "vaanivoice_webhook", { vendor_call_id: id, status: r.result.status, outcome: r.result.outcome, flags: r.result.flags });
+  return json(200, { ok: true, status: r.result.status, outcome: r.result.outcome, flags: r.result.flags }); // a summary only: no transcript, number or email
 }

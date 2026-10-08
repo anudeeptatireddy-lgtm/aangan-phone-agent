@@ -7,12 +7,16 @@ export interface VaaniCallDetails { transcription: unknown; entity: unknown; sum
 export interface VaaniHistoryRow {
   call_id: string; call_type?: string; direction?: string; call_status?: string; from_number?: string; to_number?: string;
   Start_time?: string; End_time?: string; duration_ms?: number; call_cost?: number; recording_api?: string;
+  /** "completed" | "not_processed" | "processing" (Vaani docs). Only a "completed" call has its transcript and entities. */
+  post_processing_status?: string;
 }
 /** What the webhook handler needs from Vaani. The real client implements it; so does the in-memory fake. */
 export interface VaaniVoicePort {
   /** null = the call exists but its transcript is not ready yet. Throws when Vaani does not know the call. */
   getCallDetails(callId: string): Promise<VaaniCallDetails | null>;
   findInHistory(callId: string): Promise<VaaniHistoryRow | null>;
+  /** History rows that STARTED at or after `since` (any order, no duplicates). Reads as few pages as it can; capped. */
+  recentCalls(since: Date, o?: { maxPages?: number }): Promise<VaaniHistoryRow[]>;
 }
 export interface VaaniVoiceOptions { apiKey: string; clientId?: string; baseUrl?: string; fetch?: typeof fetch; timeoutMs?: number }
 
@@ -58,5 +62,39 @@ export class VaaniVoiceClient implements VaaniVoicePort {
       if (!j.pagination?.has_next) return null;
     }
     return null;
+  }
+
+  /**
+   * The history has no documented sort order and no date filter (docs.vaanivoice.ai, call-history: `page`, `page_size` max 200). So: read page 1, work out
+   * from its own timestamps whether the list runs newest-first or oldest-first, then read pages from the recent end until a whole page is older than `since`.
+   */
+  async recentCalls(since: Date, o: { maxPages?: number } = {}): Promise<VaaniHistoryRow[]> {
+    const maxPages = o.maxPages ?? 5, cutoff = since.getTime();
+    const fetchPage = async (n: number) => {
+      const res = await this.get(`/api/call-history?page=${n}&page_size=200`);
+      if (!res.ok) throw new Error(`vaanivoice call-history failed: ${res.status}`);
+      const j = (await res.json().catch(() => ({}))) as { data?: VaaniHistoryRow[]; pagination?: { total_pages?: number } };
+      return { rows: j.data ?? [], totalPages: Number(j.pagination?.total_pages ?? 1) || 1 };
+    };
+    const start = (r: VaaniHistoryRow) => Date.parse(r.Start_time ?? "");
+    const recent = (rows: VaaniHistoryRow[]) => rows.filter((r) => start(r) >= cutoff);
+    const out = new Map<string, VaaniHistoryRow>();
+    const take = (rows: VaaniHistoryRow[]) => { for (const r of rows) if (r.call_id) out.set(r.call_id, r); };
+
+    const first = await fetchPage(1);
+    take(recent(first.rows));
+    if (first.totalPages <= 1) return [...out.values()];
+    const t = first.rows.map(start).filter(Number.isFinite);
+    const newestFirst = t.length < 2 || t[0]! >= t[t.length - 1]!;
+    const pages = newestFirst
+      ? Array.from({ length: Math.min(first.totalPages, maxPages) - 1 }, (_, i) => i + 2)
+      : Array.from({ length: Math.min(first.totalPages - 1, maxPages) }, (_, i) => first.totalPages - i);
+    for (const n of pages) {
+      const pg = await fetchPage(n);
+      const r = recent(pg.rows);
+      take(r);
+      if (r.length === 0 && pg.rows.length > 0) break; // a whole page older than the cutoff: everything beyond it is older still
+    }
+    return [...out.values()];
   }
 }

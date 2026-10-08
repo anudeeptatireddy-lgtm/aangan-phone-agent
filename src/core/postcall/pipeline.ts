@@ -88,9 +88,12 @@ export class PostCallPipeline {
     };
 
     // ---- deterministic scans first: they never depend on the model ----
-    const disclosure = checkDisclosure(rec.transcript);
-    await repo.upsertCall(id, { disclosureOk: disclosure.ok });
-    if (!disclosure.ok) await raise("missing_disclosure", `first agent line missing: ${disclosure.missing.join(", ")}`, "disclosure_check");
+    // A call we could not read at all (endedReason "failed": the reconciler's record of a call Vaani never made readable) cannot be judged on its opening.
+    if (rec.endedReason !== "failed") {
+      const disclosure = checkDisclosure(rec.transcript);
+      await repo.upsertCall(id, { disclosureOk: disclosure.ok });
+      if (!disclosure.ok) await raise("missing_disclosure", `first agent line missing: ${disclosure.missing.join(", ")}`, "disclosure_check");
+    }
 
     for (const t of rec.transcript.filter((x) => x.speaker === "agent")) {
       if (scanForPrice(t.text).length) { await raise("price_mention", t.text, "price_scan"); break; }

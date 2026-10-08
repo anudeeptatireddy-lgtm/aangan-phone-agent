@@ -75,6 +75,8 @@ export interface Deps {
   router: CallRouter;
   vaaniVoice: VaaniVoicePort;
   fakeVaaniVoice: FakeVaaniVoiceClient | undefined; // only when the in-memory fake is in use (dev/test)
+  /** A real Vaani key (or the dev/test fake). False in production without VAANIVOICE_API_KEY: the reconciler then does nothing instead of failing every minute. */
+  vaaniVoiceConfigured: boolean;
   booking: BookingService;
   // Session 4: post-call pipeline
   postcall: PostCallRepo;
@@ -156,7 +158,7 @@ export function makeDeps(o: MakeDepsOptions = {}): Deps {
   let vaaniVoice: VaaniVoicePort, fakeVaaniVoice: FakeVaaniVoiceClient | undefined;
   if (env.VAANIVOICE_API_KEY) vaaniVoice = new VaaniVoiceClient({ apiKey: env.VAANIVOICE_API_KEY, clientId: env.VAANIVOICE_CLIENT_ID });
   else if (env.NODE_ENV !== "production") vaaniVoice = fakeVaaniVoice = new FakeVaaniVoiceClient();
-  else { const no = () => Promise.reject(new Error("vaanivoice is not configured (VAANIVOICE_API_KEY)")); vaaniVoice = { getCallDetails: no, findInHistory: no }; }
+  else { const no = () => Promise.reject(new Error("vaanivoice is not configured (VAANIVOICE_API_KEY)")); vaaniVoice = { getCallDetails: no, findInHistory: no, recentCalls: no }; }
   // CRM and email: real adapters only when configured; fakes outside production; in production without config every attempt fails (and is retried / alerted).
   let crm: CrmPort, fakeCrm: FakeCrm | undefined;
   if (env.HUBSPOT_ACCESS_TOKEN && env.HUBSPOT_PIPELINE_ID && env.HUBSPOT_DEAL_STAGE_ID) crm = new HubSpotCrm({ token: env.HUBSPOT_ACCESS_TOKEN, pipelineId: env.HUBSPOT_PIPELINE_ID, dealStageId: env.HUBSPOT_DEAL_STAGE_ID });
@@ -170,7 +172,7 @@ export function makeDeps(o: MakeDepsOptions = {}): Deps {
   const alerts = new AlertDrainer({ repo: postcall, notifier, designLeadChat: async () => (await bookingRepo.listActiveDesigners()).find((x) => x.isDesignLead && x.telegramChatId != null)?.telegramChatId ?? null,
     ownerChatId: env.OWNER_TELEGRAM_CHAT_ID ? Number(env.OWNER_TELEGRAM_CHAT_ID) : undefined, nikhilChatId: env.NIKHIL_TELEGRAM_CHAT_ID ? Number(env.NIKHIL_TELEGRAM_CHAT_ID) : undefined });
   return { env, repo: new InMemoryRepo(env.PHONE_HASH_PEPPER), now, hours, designerNames: o.designerNames ?? [],
-    enquiries, bookingRepo, calendar, fakeCalendar, notifier, fakeNotifier, handoff, crm, email, fakeCrm, fakeEmail, outbox, dashboard: db ? new PgDashboardSource(db) : new InMemoryDashboardSource(postcall as InMemoryPostCallRepo, bookingRepo as InMemoryBookingRepo), db, calStore, router, vaaniVoice, fakeVaaniVoice, booking, postcall, extractor, fakeExtractor, pipeline, alerts };
+    enquiries, bookingRepo, calendar, fakeCalendar, notifier, fakeNotifier, handoff, crm, email, fakeCrm, fakeEmail, outbox, dashboard: db ? new PgDashboardSource(db) : new InMemoryDashboardSource(postcall as InMemoryPostCallRepo, bookingRepo as InMemoryBookingRepo), db, calStore, router, vaaniVoice, fakeVaaniVoice, vaaniVoiceConfigured: !!env.VAANIVOICE_API_KEY || !!fakeVaaniVoice, booking, postcall, extractor, fakeExtractor, pipeline, alerts };
 }
 
 // Process-wide singleton for the Next dev server (state is in-memory until Supabase lands).
