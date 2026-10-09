@@ -24,3 +24,7 @@ Dated, one-line entries for project-level decisions. Rule and wording decisions 
 - HubSpot deal scopes are live (`hubspot:stages` reads the account). Stage ids unchanged by the rename; map: appointmentscheduled -> consult_booked, presentationscheduled -> consult_held, contractsent -> quote_sent; start stage qualifiedtobuy. `decisionmakerboughtin` (Client approved) left unmapped: the studio has not said which of our funnel steps it is; unmapped keeps the earlier stage and alerts once.
 - vaanilabs.in findings were already retired (banner in `docs/vaani-findings.md`; code is vaanivoice.ai only).
 - Gap: the Vaani test agent has 19 data points; `docs/vaani-data-points.json` has 23. Missing in Vaani: `caller_email`, `service_wanted`, `booked_consultation`, `booked_time` (the router uses the email and booking claim). Owner adds them in Vaani > Analysis > Extractions before the first real call.
+
+## 2026-10-09: Vaani extraction fields pushed from the repo
+- `PATCH /api/agent/{id}/analysis` is documented and returns the whole agent config; no separate GET for an agent's config is documented, so the backup (`docs/vaani-agent-backup.json`, `integration_secrets` replaced by a placeholder) and the after-check (`docs/vaani-extraction-after.json`) both come from that response (a no-op `{}` patch).
+- The test agent had 23 fields (the four extra ones had been added by hand) but 37 wording/nullable/values differences from `docs/vaani-data-points.json`. All 23 now match the repo file exactly (empty values treated as absent). The repo file is the source of truth.

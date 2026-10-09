@@ -1,0 +1,168 @@
+{
+ "enabled": true,
+ "data_points": [
+  {
+   "name": "caller_name",
+   "prompt": "The caller's own name, as they said it. Null if they did not give it.",
+   "nullable": true
+  },
+  {
+   "name": "caller_email",
+   "prompt": "The caller's email address if they gave one, in lowercase. Null if not given.",
+   "nullable": true
+  },
+  {
+   "name": "locality",
+   "prompt": "The area or locality of the property in Pune or Pimpri-Chinchwad, as the caller said it (for example the neighbourhood name). Null if not said.",
+   "nullable": true
+  },
+  {
+   "name": "project_type",
+   "prompt": "What kind of property: home, office, or other (shop, restaurant, gym, anything else).",
+   "values": [
+    "home",
+    "office",
+    "other"
+   ],
+   "nullable": true
+  },
+  {
+   "name": "bhk",
+   "prompt": "Number of bedrooms (the BHK) as a digit only. Null if not said.",
+   "nullable": true
+  },
+  {
+   "name": "carpet_area_sqft",
+   "prompt": "Carpet area in square feet, as a number only. Null if not said.",
+   "nullable": true
+  },
+  {
+   "name": "referral_source",
+   "prompt": "How the caller heard about Aangan, in a few words (friend, Instagram, Google, a hoarding, and so on). Null if not said.",
+   "nullable": true
+  },
+  {
+   "name": "referrer_name",
+   "prompt": "The name of the person who referred them to Aangan, if they named one. Null otherwise.",
+   "nullable": true
+  },
+  {
+   "name": "language",
+   "prompt": "The main language the CALLER spoke (not the assistant).",
+   "values": [
+    "English",
+    "Hindi",
+    "Marathi"
+   ],
+   "nullable": true
+  },
+  {
+   "name": "intent",
+   "prompt": "new_enquiry = wants a new project designed. existing_client = is talking about a project they already have with Aangan. other = a vendor, a job seeker, a wrong number or anything else.",
+   "values": [
+    "new_enquiry",
+    "existing_client",
+    "other"
+   ],
+   "nullable": true
+  },
+  {
+   "name": "is_complaint",
+   "prompt": "yes if the caller is unhappy about service on a project they already have with Aangan. no otherwise.",
+   "values": [
+    "yes",
+    "no"
+   ],
+   "nullable": false
+  },
+  {
+   "name": "owners_attend",
+   "prompt": "Whether the owners or decision-makers will attend the consultation: yes or no. Null if it was not discussed.",
+   "values": [
+    "yes",
+    "no"
+   ],
+   "nullable": true
+  },
+  {
+   "name": "is_rental",
+   "prompt": "yes if the property is rented, no if the caller owns it. Null if not said.",
+   "values": [
+    "yes",
+    "no"
+   ],
+   "nullable": true
+  },
+  {
+   "name": "landlord_consent",
+   "prompt": "For a rented property: yes if the landlord has agreed to changes, no if not. Null if not discussed.",
+   "values": [
+    "yes",
+    "no"
+   ],
+   "nullable": true
+  },
+  {
+   "name": "asked_price",
+   "prompt": "yes if the caller asked what it would cost, or asked for a rate or a price. no otherwise.",
+   "values": [
+    "yes",
+    "no"
+   ],
+   "nullable": false
+  },
+  {
+   "name": "service_wanted",
+   "prompt": "Whether the caller wants Aangan to do both the design and the execution (the actual work), only the design, or only the execution.",
+   "values": [
+    "design_and_execution",
+    "design_only",
+    "execution_only"
+   ],
+   "nullable": true
+  },
+  {
+   "name": "scope",
+   "prompt": "What work the caller wants done, in a few words (for example full home, kitchen only, wardrobes, two bedrooms, office fit-out). Null if not said.",
+   "nullable": true
+  },
+  {
+   "name": "current_state",
+   "prompt": "The state the property is in now, in a few words (bare, lived-in, awaiting possession, under construction). Null if not said.",
+   "nullable": true
+  },
+  {
+   "name": "completion_deadline",
+   "prompt": "By when the caller needs the work finished, in the caller's own words (for example 'by March', 'before Diwali', 'in two months'). Never convert it into a date. Null if not said.",
+   "nullable": true
+  },
+  {
+   "name": "budget_volunteered",
+   "prompt": "ONLY a budget the CALLER said themselves, exactly as they said it. If the caller did not say a budget, return null. NEVER a figure spoken by the assistant, and never an estimate.",
+   "nullable": true
+  },
+  {
+   "name": "booked_consultation",
+   "prompt": "yes ONLY if the Cal.com booking tool confirmed the booking during this call and the assistant then told the caller it is booked. no in every other case, including when the caller only agreed to a callback.",
+   "values": [
+    "yes",
+    "no"
+   ],
+   "nullable": false
+  },
+  {
+   "name": "booked_time",
+   "prompt": "The day and time the assistant read back as booked, in the assistant's words. Null if no consultation was booked.",
+   "nullable": true
+  },
+  {
+   "name": "wants_person",
+   "prompt": "yes if the caller asked to speak to a person. no otherwise.",
+   "values": [
+    "yes",
+    "no"
+   ],
+   "nullable": false
+  }
+ ]
+}

@@ -1,0 +1,457 @@
+{
+ "agent_id": "71488786-49d9-4e9f-bfe4-6434cd697c7e",
+ "client_id": "8b7d7c98-200f-4618-8730-cbd5777f405c",
+ "user_id": "3133cd6a-d011-7099-7449-85785f838445",
+ "metadata": {},
+ "integration_secrets": "<redacted: not stored in the repo>",
+ "agent_display_name": "Aangan Test Agent v0",
+ "last_edited_at": "2026-10-09T04:01:37.695756",
+ "published_at": null,
+ "persona": {
+  "metadata": {},
+  "identity": {
+   "personality": {
+    "male": "default personality"
+   },
+   "greeting_message": {
+    "agent_message": "Namaste, Aangan Studio. I'm Aangan's virtual assistant, and this call is recorded so our designers have your details. How can I help?",
+    "agent_speech_delay": 1,
+    "interruptible": false,
+    "let_user_speak_first": false,
+    "user_speech_delay": 0
+   },
+   "system_prompt": "You are the virtual assistant for Aangan Studio, an interior design studio in Pune that designs and executes homes and small offices. You answer inbound calls. Keep every turn short and warm. Speak the caller's language: English, Hindi or Marathi.\n\nFirst, find out why they're calling:\n- New project → ask the questions below.\n- Existing project, or a complaint about one → do not ask qualifying questions. Say: \"I'm sorry this has happened. I've flagged it to our senior team, and a senior person will call you back. You won't need to explain it again.\" Take their name and project designer's name, then end politely.\n- Anything else (vendor, job, wrong number) → take a message and end politely.\n\nFor new projects, ask one at a time, in this order:\n1. Where is the home or office? (area of Pune)\n2. What would you like done? (full home, which rooms, or an office fitout)\n2b. Do you want us to do both the design and the execution (the actual work)? (design and execution, design only, or execution only)\n3. Roughly how big is it, in carpet square feet, or how many BHK?\n4. What state is it in now? (bare, lived-in, awaiting possession)\n5. By when do you need it done?\n6. Who will decide, and will they attend the consultation?\n7. How did you hear about Aangan?\nOnly note a budget if the caller offers one. Never ask for it.\n\nPrice: NEVER say any price, rate, range, per-square-foot figure or minimum budget, even if pushed. Always say: \"I can't give you a figure that would mean anything before a designer sees your home. The same kitchen can cost several times more depending on the materials. The consultation is free, and by the end of it the designer will give you a proper number.\"\n\nIf asked \"Is this a robot?\": \"Yes, I'm Aangan's virtual assistant. I can help you get a consultation booked, or arrange for a person to call you. Whichever you prefer.\"\n\nIf the caller asks for a person: \"Of course. I'll have our team call you back during working hours, Monday to Friday, 10am to 7pm.\"\n\nBefore ending, read the key facts back: \"So that's a [BHK/size] in [area], [scope], needed by [date]. Is that right?\" Then follow the BOOKING section below. If you do not book a consultation, say: \"Thank you. I've noted everything, and our team will call you back during working hours, Monday to Friday, 10am to 7pm.\"\n\nNever promise a price, a specific designer, Nikhil personally, or a start date.\n\nBOOKING (only for callers who qualify)\nYou can book a free consultation with the Cal.com booking tool, for the event \"Aangan consultation\". Book ONLY if ALL THREE are true:\n(a) the property is in Pune or Pimpri-Chinchwad (PCMC);\n(b) the caller wants BOTH design and execution;\n(c) it is a home or an office.\nIf any of these is false, or you are unsure, do NOT book and do NOT say they do not qualify. Take their details, then say: \"Thank you. I've noted everything, and our team will call you back during working hours, Monday to Friday, 10am to 7pm.\"\n\nIf all three are true, after reading the facts back:\n1. Say: \"The consultation is free. Shall I book a time for you now?\" If they say no, use the callback line above.\n2. Ask for their email address, and read it back letter by letter to confirm it.\n3. Ask which day and time suits them. Use the booking tool to check availability and offer at most three options. Times are India time.\n4. Book the slot with the tool. Say the booking is made ONLY after the tool confirms success, then read the day and time back once. Say a confirmation will arrive by email.\n5. If the tool is unavailable, shows nothing free, or fails, never pretend: say \"I couldn't confirm a slot just now. Our team will call you back during working hours to fix a time.\"\n\nNever promise a specific designer, a price, or that Nikhil will attend."
+  },
+  "senses_capabilities": {
+   "language": "English",
+   "auto_detect": false,
+   "ears": {
+    "stt": {
+     "primary": {
+      "provider": "assemblyai",
+      "model": "best",
+      "language": "en",
+      "keywords": [],
+      "config": {}
+     },
+     "fallback": {
+      "provider": "deepgram",
+      "model": "nova-3",
+      "config": {
+       "end_of_turn_confidence_threshold": 0.5,
+       "min_end_of_turn_silence_when_confident": 160,
+       "max_turn_silence": 1280,
+       "format_turns": true
+      },
+      "language": "en-AU"
+     }
+    }
+   },
+   "brain": {
+    "llm": {
+     "primary": {
+      "provider": "google",
+      "model": "gemini-3.5-flash",
+      "parameters": {
+       "temperature": 0.7,
+       "top_p": 1.0,
+       "max_tokens": 500
+      }
+     },
+     "fallback": {
+      "provider": "azure",
+      "model": "gpt-4o",
+      "parameters": {
+       "temperature": 0.7,
+       "top_p": 1.0,
+       "max_tokens": 500
+      }
+     },
+     "auto_detect": false
+    }
+   },
+   "mouth": {
+    "tts": {
+     "primary": {
+      "provider": "sarvam",
+      "model": "bulbul:v3",
+      "voice_id": "ritu",
+      "voice_name": "ritu",
+      "is_cloned": false,
+      "config": {
+       "speed": 1,
+       "language": "en-IN",
+       "emotion": [
+        "positivity:highest",
+        "curiosity:highest"
+       ],
+       "emotions": []
+      },
+      "language": "en-IN"
+     },
+     "fallback": {
+      "provider": "deepgram",
+      "model": "aura-2",
+      "voice_id": "Arcas",
+      "is_cloned": false,
+      "config": {
+       "language": "en"
+      },
+      "voice_name": "Arcas"
+     },
+     "word_pronunciation_pairs": {}
+    }
+   }
+  },
+  "actions": {
+   "agent_id": "71488786-49d9-4e9f-bfe4-6434cd697c7e",
+   "agent_name": "anudeepaangantestagentv0",
+   "functions": [],
+   "count": 0
+  },
+  "memories": {
+   "agent_id": "71488786-49d9-4e9f-bfe4-6434cd697c7e",
+   "agent_ids": [
+    "71488786-49d9-4e9f-bfe4-6434cd697c7e"
+   ],
+   "agent_name": "anudeepaangantestagentv0",
+   "use_previous_call_contexts": false,
+   "max_history_calls": 5,
+   "feed_context_api": {},
+   "use_rag": false,
+   "knowledge_bases": [],
+   "total_count": 0
+  },
+  "timezone": "Asia/Kolkata",
+  "agent_gender": "female"
+ },
+ "training": {
+  "knowledge": {
+   "use_rag": false,
+   "rag_knowledge_base_dict": {
+    "knowledge_bases": {}
+   }
+  },
+  "know_how": {
+   "faq": {},
+   "pain_points": {},
+   "faq_merged": {},
+   "pain_points_merged": {},
+   "faq_json_file_url": null,
+   "pain_points_json_file_url": null,
+   "guardrails": {}
+  }
+ },
+ "experience": {
+  "conversational_experience": {
+   "bg_noise": {},
+   "filler_words": {
+    "filler_words": false,
+    "filler_words_frequency": 0,
+    "filler_words_list": []
+   },
+   "filler_words_frequency": 0,
+   "filler_words_list": [],
+   "breathing_sound": {},
+   "eagerness_to_speak": "fast",
+   "patience_with_user_entries": {},
+   "mood_mapping": {}
+  },
+  "settings": {
+   "idle_conversation_settings": {
+    "pulse_check": true,
+    "end_conversation_on_idle": true,
+    "idle_call_hangup_timeout": 10,
+    "idle_call_warning_timeout": 10,
+    "idle_call_hangup_message": "Thank you for calling. Hanging up due to inactivity.",
+    "idle_call_warning_message": "Hello, you have been inactive for a while. Please let me know if you need help.",
+    "idle_call_hangup_messages": null,
+    "idle_call_warning_messages": null,
+    "initial_idle_call_warning_timeout": 3.0,
+    "initial_idle_call_hungup_timeout": 10.0,
+    "initial_warning_message": "Hello?",
+    "initial_warning_messages": null
+   },
+   "end_call": {
+    "enabled": true,
+    "end_call_phrase": null,
+    "hangup_timeout": null,
+    "conditional_end_call_phrases": {
+     "enabled": false,
+     "phrases": []
+    }
+   },
+   "call_settings": {
+    "max_duration_action": "hang_up",
+    "max_duration_hangup_message": "The maximum call duration has been reached. Thank you for your time. Goodbye.",
+    "max_duration_transfer_message": "",
+    "max_call_duration": 30
+   },
+   "voice_volume_step": null,
+   "vad_watcher": {
+    "empty_transcript_wait": 6.0,
+    "max_consecutive_noise": 3,
+    "noise_hangup_message": "There is too much noise in background, unable to understand. Please call back at a better time.",
+    "noise_response_phrases": [
+     "Sorry, I couldn't hear you properly. Could you speak a little louder?",
+     "I didn't catch that. Would you mind speaking up a bit?",
+     "Your voice isn't very clear. Could you please say that again a little louder?"
+    ]
+   },
+   "stuck_watcher": {
+    "thinking_timeout": 15.0,
+    "speaking_timeout": 30.0,
+    "thinking_message": "Please give me a moment while I check that for you.",
+    "network_issue_message": "I am experiencing network issues and unable to proceed further. Hanging up."
+   }
+  }
+ },
+ "analysis": {
+  "evaluations": {
+   "dispositions": {},
+   "conversation_evaluation": {
+    "enabled": false
+   }
+  },
+  "extraction": {
+   "data_collection": {
+    "enabled": true,
+    "data_points": [
+     {
+      "name": "caller_name",
+      "prompt": "The caller's name, as they gave it during the call.",
+      "values": [],
+      "nullable": true
+     },
+     {
+      "name": "intent",
+      "prompt": "Why the caller is calling: new_enquiry for a new project, existing_client for an existing project or a complaint about one, other for anything else (vendor, job, wrong number).",
+      "values": [
+       "new_enquiry",
+       "existing_client",
+       "other"
+      ],
+      "nullable": true
+     },
+     {
+      "name": "is_complaint",
+      "prompt": "yes if the caller is complaining about an existing project or work, otherwise no.",
+      "values": [
+       "yes",
+       "no"
+      ],
+      "nullable": true
+     },
+     {
+      "name": "locality",
+      "prompt": "The area or locality in Pune where the home or office is.",
+      "values": [],
+      "nullable": true
+     },
+     {
+      "name": "project_type",
+      "prompt": "Whether the project is a home, an office, or other.",
+      "values": [
+       "home",
+       "office",
+       "other"
+      ],
+      "nullable": true
+     },
+     {
+      "name": "scope",
+      "prompt": "What the caller wants done: full home, which specific rooms, or an office fitout.",
+      "values": [],
+      "nullable": true
+     },
+     {
+      "name": "bhk",
+      "prompt": "Number of BHK of the home, if mentioned (e.g. 1, 2, 3, 4).",
+      "values": [],
+      "nullable": true
+     },
+     {
+      "name": "carpet_area_sqft",
+      "prompt": "Carpet area in square feet, if mentioned, as a number.",
+      "values": [],
+      "nullable": true
+     },
+     {
+      "name": "current_state",
+      "prompt": "Current state of the property: bare, lived-in, or awaiting possession.",
+      "values": [],
+      "nullable": true
+     },
+     {
+      "name": "completion_deadline",
+      "prompt": "By when the caller needs the work completed, as stated.",
+      "values": [],
+      "nullable": true
+     },
+     {
+      "name": "budget_volunteered",
+      "prompt": "A budget figure only if the caller offered one unprompted; otherwise NA.",
+      "values": [],
+      "nullable": true
+     },
+     {
+      "name": "referral_source",
+      "prompt": "How the caller heard about Aangan (e.g. referral, Instagram, Google, walk-in).",
+      "values": [],
+      "nullable": true
+     },
+     {
+      "name": "referrer_name",
+      "prompt": "Name of the person who referred the caller, if mentioned.",
+      "values": [],
+      "nullable": true
+     },
+     {
+      "name": "language",
+      "prompt": "The main language the caller spoke: English, Hindi or Marathi.",
+      "values": [],
+      "nullable": true
+     },
+     {
+      "name": "owners_attend",
+      "prompt": "Whether the decision-makers will attend the consultation: yes, no, or unknown.",
+      "values": [
+       "yes",
+       "no",
+       "unknown"
+      ],
+      "nullable": true
+     },
+     {
+      "name": "is_rental",
+      "prompt": "Whether the property is rented by the caller: yes or no.",
+      "values": [
+       "yes",
+       "no"
+      ],
+      "nullable": true
+     },
+     {
+      "name": "landlord_consent",
+      "prompt": "For rented properties, whether the landlord has consented to the work: yes, no, or unknown.",
+      "values": [
+       "yes",
+       "no",
+       "unknown"
+      ],
+      "nullable": true
+     },
+     {
+      "name": "asked_price",
+      "prompt": "Whether the caller asked about price, rates, cost or budget: yes or no.",
+      "values": [
+       "yes",
+       "no"
+      ],
+      "nullable": true
+     },
+     {
+      "name": "wants_person",
+      "prompt": "Whether the caller asked to speak to a person: yes or no.",
+      "values": [
+       "yes",
+       "no"
+      ],
+      "nullable": true
+     },
+     {
+      "name": "service_wanted",
+      "prompt": "Whether the caller wants Aangan to do both the design and the execution (the actual work), only the design, or only the execution.",
+      "values": [
+       "design_and_execution",
+       "design_only",
+       "execution_only"
+      ],
+      "nullable": true
+     },
+     {
+      "name": "caller_email",
+      "prompt": "The caller's email address if they gave one, in lowercase. Null if not given.",
+      "values": [],
+      "nullable": true
+     },
+     {
+      "name": "booked_consultation",
+      "prompt": "yes ONLY if the Cal.com booking tool confirmed the booking during this call and the assistant then told the caller it is booked. no in every other case, including when the caller only agreed to a callback.",
+      "values": [
+       "yes",
+       "no"
+      ],
+      "nullable": false
+     },
+     {
+      "name": "booked_time",
+      "prompt": "The day and time the assistant read back as booked, in the assistant's words. Null if no consultation was booked.",
+      "values": [],
+      "nullable": true
+     }
+    ]
+   },
+   "collect_concerns": {}
+  }
+ },
+ "deployment_config": {
+  "deployment": {
+   "phone": {
+    "call_type": {
+     "Inbound": "",
+     "Outbound": []
+    }
+   }
+  }
+ },
+ "system_prompt_config": {},
+ "webhook": null,
+ "gsheet_config": {
+  "spreadsheet_id": "",
+  "sheet_name": "",
+  "is_enabled": false,
+  "mapping": {
+   "caller_name": "",
+   "intent": "",
+   "is_complaint": "",
+   "locality": "",
+   "project_type": "",
+   "scope": "",
+   "bhk": "",
+   "carpet_area_sqft": "",
+   "current_state": "",
+   "completion_deadline": "",
+   "budget_volunteered": "",
+   "referral_source": "",
+   "referrer_name": "",
+   "language": "",
+   "owners_attend": "",
+   "is_rental": "",
+   "landlord_consent": "",
+   "asked_price": "",
+   "wants_person": "",
+   "service_wanted": "",
+   "caller_email": "",
+   "booked_consultation": "",
+   "booked_time": ""
+  }
+ },
+ "extra_params": {
+  "flexprice_customer_id": "cust_01M4AD066R2NYJ6WJ9KWE480CM",
+  "flexprice_wallet_id": "wallet_01M4AD067MR179RK9315K7HSQN"
+ },
+ "frontend_features": {
+  "recording": false,
+  "transcript": false,
+  "summary": false,
+  "conversation_evaluation": false,
+  "extracted_information": true,
+  "preemptive_generation": false,
+  "volume_control": true
+ },
+ "static_prompt_ids": [
+  "8124154c-b53d-4be6-be6a-d5357a248b76"
+ ],
+ "warnings": []
+}
