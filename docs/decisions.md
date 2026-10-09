@@ -51,3 +51,8 @@ Dated, one-line entries for project-level decisions. Rule and wording decisions 
 - Webhook 8382e111-... (created by the owner) points at `/api/calcom/webhook`; its signing secret was empty, so it is now set to `CALCOM_SIGNING_SECRET`. Verified on the live app: a correctly signed ping is accepted, a wrongly signed one gets 401. A real delivery from a real booking is still unverified.
 - The webhook is account-wide (no event type filter) and the account still has 3 sample event types; a booking on those would reach the router as an orphan.
 - Cal.com's API rejects Python's default user-agent with 403: send a normal one.
+
+## 2026-10-09: Vaani agent wired to Cal.com and our webhook (done in the dashboard by Claude in Chrome)
+- Cal.com booking tools live on the AGENT: Persona -> Actions -> Integration Tools (not Settings -> Integrations, which only holds the API key). `book_appointment` and `check_availability_booking` on, event type id 7409577 ("Aangan consultation"), Asia/Kolkata, 60 min. The page shows the id, not the name.
+- Webhook "Aangan post-call" enabled, linked to Aangan Test Agent v0, only Call Post-Processing ticked, "Send all call details" on, URL = live host + `/api/vaanivoice/webhook/<secret>`. The app answers 200 to non-call payloads (Vaani's Test Connectivity) since eca2b4b.
+- First chat test blocked: Vaani balance is 0.00 INR ("insufficient balance"). A small top-up is an owner decision (about 5.3 INR/min per the dashboard estimate).
