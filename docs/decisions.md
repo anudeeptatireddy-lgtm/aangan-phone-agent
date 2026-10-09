@@ -72,3 +72,8 @@ Dated, one-line entries for project-level decisions. Rule and wording decisions 
 ## 2026-10-09: the dashboard is open without a password (owner decision: the professor must see it)
 - New explicit switch `DASHBOARD_OPEN=true` (production only; exact value). It beats the password rule and the fail-closed default stays for every other value. The open dashboard is READ-ONLY: phone reveal and review overturns return 403 and the buttons are hidden, so a public link can never show a real number or change a review.
 - Set on Vercel; `DASHBOARD_PASSWORD` removed from Vercel (it stays in `.env.local`, unused). Only test data may be in the database while it is open: with real caller data, unset `DASHBOARD_OPEN` and set the password again (rule 6).
+
+## 2026-10-09: dashboard 500 on Vercel (EMAXCONNSESSION), fixed
+- Cause: Vercel's `DATABASE_URL` used Supabase's SESSION pooler (port 5432, 15 connections in total); every dashboard page runs many queries and every serverless instance opened its own pool of 5, so the pool ran out and pages returned 500 in a real browser (a plain status-code check had hidden it).
+- Fix: Vercel's `DATABASE_URL` now uses the TRANSACTION pooler (port 6543, made for serverless; the live app uses no session state), and pools are 3 connections with a 5 s idle timeout (`src/db/open.ts`). `.env.local` keeps port 5432 for local scripts (the demo seeder uses a session setting). Verified: 72 concurrent requests, all 200, no connection-limit errors.
+- Lesson: check pages in a browser, not just curl.
