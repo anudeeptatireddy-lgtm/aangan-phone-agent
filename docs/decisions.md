@@ -38,3 +38,9 @@ Dated, one-line entries for project-level decisions. Rule and wording decisions 
 - Supabase project `aangan-phone-agent` (ref `wlpdcixvpqkxgpbtrnkl`, ap-south-1 Mumbai, free plan, $0) created through the connector. Migrations 0001-0005 applied (22 tables, RLS on every table, no data). Applied by the connector, so Supabase's migration history uses its own version numbers, not the file names: do not run `supabase db push` against it; add future changes through new migration files AND the connector.
 - Still to do: seed (`supabase/seed.sql`: rules v1, approved texts, hours, 3 TEST designers) once `DATABASE_URL` exists; then Vercel project and env vars.
 - Owner decision: Gemini paid key will be supplied by the owner (so rule 6 is met for Gemini after all); the rest stays on free tiers.
+
+## 2026-10-09: hosting on Vercel Hobby (free) and the commit-author rule
+- Project `aangan-phone-agent` lives in the Hobby account `qwertyuiop20` (CLI-linked; the Vercel connector in Claude cannot see that account). Env vars were copied from `.env.local` by CLI as sensitive production values.
+- Hobby only builds commits authored by the account owner's GitHub identity. Earlier commits had a local `@...local` author and both deployments were BLOCKED. This repo's author is now the GitHub no-reply address (`<id>+anudeeptatireddy-lgtm@users.noreply.github.com`).
+- Hobby allows only daily cron: `vercel.json` runs the tick once a day (03:00 UTC); the every-minute tick must come from a free pinger hitting `/api/cron/tick` with `Authorization: Bearer <CRON_SECRET>`.
+- Supabase connection: TLS verified against Supabase Root 2021 CA (`src/db/supabase-ca.ts`, valid to 2031).
