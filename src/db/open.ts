@@ -50,7 +50,7 @@ class PgPool implements OpenDb {
   readonly kind = "postgres" as const;
   private pool: Promise<{ query: SqlClient["query"]; end(): Promise<void> }>;
   constructor(url: string) {
-    this.pool = import("pg").then(({ default: pg }) => new pg.Pool({ connectionString: url, max: 5, ...(/@(localhost|127\.0\.0\.1)[:/]/.test(url) ? {} : { ssl: { ca: SUPABASE_CA } }) }) as unknown as { query: SqlClient["query"]; end(): Promise<void> });
+    this.pool = import("pg").then(({ default: pg }) => new pg.Pool({ connectionString: url, max: 3, idleTimeoutMillis: 5_000, ...(/@(localhost|127\.0\.0\.1)[:/]/.test(url) ? {} : { ssl: { ca: SUPABASE_CA } }) }) as unknown as { query: SqlClient["query"]; end(): Promise<void> });
   }
   async query(sql: string, params?: unknown[]) { return (await this.pool).query(sql, params); }
   async close() { await (await this.pool).end(); }
