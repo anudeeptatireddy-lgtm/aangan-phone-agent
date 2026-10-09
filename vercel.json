@@ -1,4 +1,11 @@
 {
-  "regions": ["bom1"],
-  "crons": [{ "path": "/api/cron/tick", "schedule": "* * * * *" }]
+  "regions": [
+    "bom1"
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/tick",
+      "schedule": "0 3 * * *"
+    }
+  ]
 }

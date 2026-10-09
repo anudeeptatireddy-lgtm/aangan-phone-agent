@@ -36,3 +36,5 @@ pglite-data/
 data/local/
 coverage/
 .DS_Store
+.vercel
+.env*
