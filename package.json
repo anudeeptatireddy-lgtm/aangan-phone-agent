@@ -17,7 +17,8 @@
     "db:reset": "supabase db reset",
     "seed:demo": "tsx scripts/seed-demo.ts",
     "seed:demo:reset": "tsx scripts/seed-demo-reset.ts",
-    "hubspot:stages": "tsx scripts/hubspot-stages.ts"
+    "hubspot:stages": "tsx scripts/hubspot-stages.ts",
+    "replay": "tsx scripts/replay.ts"
   },
   "dependencies": {
     "next": "^16.4.0",

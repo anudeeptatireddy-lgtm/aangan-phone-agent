@@ -63,3 +63,8 @@ Dated, one-line entries for project-level decisions. Rule and wording decisions 
 - The HubSpot service key will NOT be rotated (it was shown in a screenshot): accepted by the owner for a 2-week assignment. Same reasoning for the Vaani key (expires about 2026-11-07) and Nikhil's production sign-off: out of scope for the 2 weeks.
 - Free minute-by-minute tick: a Supabase pg_cron job `aangan-tick` (every minute) calls `/api/cron/tick` through pg_net with `Authorization: Bearer <CRON_SECRET>`. The secret sits inside `cron.job` (database admin only); if `CRON_SECRET` is ever changed, reschedule the job. Verified: 200 responses every minute. It also keeps the free Supabase project from pausing. Vercel's own daily cron stays as a backup.
 - The free browser chat test is postponed by the owner.
+
+## 2026-10-09: replay harness built (Session 7)
+- `pnpm replay` / `tests/replay/`: 20 phone calls + 10 hard cases + 8 planted price violations, all through the real pipeline on fakes. 30/30 pass, gate caught 8/8, 0 price numbers. A price leak in any call fails the run (tested). The agent's side is a script of the approved wording: Vaani's live wording stays unproven until a real chat or call.
+- Bug found and fixed by H10: a caller who only asks for a person (no project details) now ends as `escalated`, not `review` (`src/core/postcall/pipeline.ts`).
+- Hard-case 5's "apologises" and hard-case 3's live transfer belong to the live agent: marked "live agent only", not tested offline. Prompt-only mode has no live caller lookup, so "recognises the number" is checked after the call.

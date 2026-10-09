@@ -177,7 +177,8 @@ export class PostCallPipeline {
     const hasContent = !!(mapping.input.location || mapping.input.project_type || (mapping.input.scope && mapping.input.scope !== "unspecified") || mapping.input.carpet_sqft || mapping.input.bhk || mapping.input.deadline_date);
     const enquiryId = live?.id ?? parent?.enquiryId ?? (hasContent ? crypto.randomUUID() : undefined);
     if (parent) await repo.upsertCall(id, { parentCallId: parent.id });
-    if (!enquiryId) return finish(rec.endedReason === "dropped" ? "dropped" : "review");
+    // A caller who only asked for a person gave no project details, but they are still escalated: the call must end as such, not as a plain "review".
+    if (!enquiryId) return finish(escalated ? "escalated" : rec.endedReason === "dropped" ? "dropped" : "review");
 
     const post = checkFit(mapping.input, startedAt, this.d.rules ?? RULES_V1);
     const liveEval = await repo.latestEvaluation(id, "live");
