@@ -33,3 +33,8 @@ Dated, one-line entries for project-level decisions. Rule and wording decisions 
 - The project is a vibe-coded assignment: use free tiers and free tools everywhere; no paid plans.
 - Rule 6 (paid, no-training tiers only) is relaxed for this assignment ONLY because every call is a test call by the owner or synthetic data. No real caller data may go through a free tier. Before any real use, rule 6 applies again (paid Gemini tier, `GEMINI_PAID_TIER_CONFIRMED`).
 - Free mapping: Supabase free (or local PGlite), Vercel Hobby (cron only daily, so the minute tick comes from a free external pinger or runs locally), Gemini free tier via AI Studio, Telegram, Cal.com free, HubSpot free (done), Resend free (own address only without a domain). Vaani is the one item with a cost (browser test may need credit; a phone number costs money): the demo can skip the number and use Vaani's browser test plus our simulator and demo data.
+
+## 2026-10-09: hosted database created (free)
+- Supabase project `aangan-phone-agent` (ref `wlpdcixvpqkxgpbtrnkl`, ap-south-1 Mumbai, free plan, $0) created through the connector. Migrations 0001-0005 applied (22 tables, RLS on every table, no data). Applied by the connector, so Supabase's migration history uses its own version numbers, not the file names: do not run `supabase db push` against it; add future changes through new migration files AND the connector.
+- Still to do: seed (`supabase/seed.sql`: rules v1, approved texts, hours, 3 TEST designers) once `DATABASE_URL` exists; then Vercel project and env vars.
+- Owner decision: Gemini paid key will be supplied by the owner (so rule 6 is met for Gemini after all); the rest stays on free tiers.
