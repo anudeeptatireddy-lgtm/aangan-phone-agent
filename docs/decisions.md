@@ -28,3 +28,8 @@ Dated, one-line entries for project-level decisions. Rule and wording decisions 
 ## 2026-10-09: Vaani extraction fields pushed from the repo
 - `PATCH /api/agent/{id}/analysis` is documented and returns the whole agent config; no separate GET for an agent's config is documented, so the backup (`docs/vaani-agent-backup.json`, `integration_secrets` replaced by a placeholder) and the after-check (`docs/vaani-extraction-after.json`) both come from that response (a no-op `{}` patch).
 - The test agent had 23 fields (the four extra ones had been added by hand) but 37 wording/nullable/values differences from `docs/vaani-data-points.json`. All 23 now match the repo file exactly (empty values treated as absent). The repo file is the source of truth.
+
+## 2026-10-09: free tiers only (owner decision, assignment scope)
+- The project is a vibe-coded assignment: use free tiers and free tools everywhere; no paid plans.
+- Rule 6 (paid, no-training tiers only) is relaxed for this assignment ONLY because every call is a test call by the owner or synthetic data. No real caller data may go through a free tier. Before any real use, rule 6 applies again (paid Gemini tier, `GEMINI_PAID_TIER_CONFIRMED`).
+- Free mapping: Supabase free (or local PGlite), Vercel Hobby (cron only daily, so the minute tick comes from a free external pinger or runs locally), Gemini free tier via AI Studio, Telegram, Cal.com free, HubSpot free (done), Resend free (own address only without a domain). Vaani is the one item with a cost (browser test may need credit; a phone number costs money): the demo can skip the number and use Vaani's browser test plus our simulator and demo data.
