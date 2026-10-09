@@ -19,9 +19,18 @@ export async function handleVaaniVoiceWebhook(req: Request, deps: Deps, secretSe
   if (!want) return json(503, { error: "webhook_secret_not_configured" });
   if (!same(secretSegment, want)) return json(404, { error: "not_found" }); // reveal nothing about the route
 
-  const body = await req.json().catch(() => null);
+  const raw = await req.text();
+  let body: unknown = null;
+  if (raw.trim()) { try { body = JSON.parse(raw); } catch { return json(400, { error: "bad_json" }); } }
   const ev = parseVaaniVoiceEvent(body);
-  if (!ev) return json(400, { error: "bad_event" });
+  if (!ev) {
+    // The real end-of-call event without a call id is a genuine problem: say so. Anything else that is not a call event
+    // (Vaani's "Test Connectivity" button, a future event type) is acknowledged and ignored, so the setup screen passes.
+    const named = typeof body === "object" && body !== null ? (body as { event?: unknown }).event : undefined;
+    if (named === "call_postprocessing") return json(400, { error: "bad_event" });
+    log("info", "vaanivoice_webhook", { ignored: true, reason: "not_a_call_event", keys: typeof body === "object" && body !== null ? Object.keys(body).slice(0, 12) : [] });
+    return json(200, { ok: true, ignored: "not_a_call_event" });
+  }
   if (ev.event !== "call_postprocessing") { log("info", "vaanivoice_webhook", { event: ev.event, ignored: true }); return json(200, { ok: true, ignored: ev.event }); }
   if (!deps.pipeline) return json(503, { error: "extractor_not_configured" });
 

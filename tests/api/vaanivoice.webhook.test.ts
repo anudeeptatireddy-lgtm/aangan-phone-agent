@@ -34,7 +34,15 @@ describe("the secret path segment", () => {
   });
   it("a bad body is a 400 (after the secret is checked)", async () => {
     expect((await send("{nope")).status).toBe(400);
-    expect((await send({ foo: 1 })).status).toBe(400);
+    expect((await send({ event: "call_postprocessing" })).status).toBe(400); // the real event without a call id is a real problem
+  });
+
+  it("a payload that is not a call event (Vaani's 'Test Connectivity') is acknowledged with 200 and nothing happens", async () => {
+    for (const body of [{ foo: 1 }, { test: true }, { event: "call_started" }, {}, ""]) {
+      const res = await send(body);
+      expect(res.status).toBe(200);
+      expect((await res.json()).ignored).toBeTruthy();
+    }
   });
 });
 
