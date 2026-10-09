@@ -10,7 +10,7 @@ export type DashCtx =
   | { state: "blocked" }                       // production without DASHBOARD_PASSWORD: fail closed
   | { state: "login"; error: boolean }         // production with a password and no session
   | { state: "nodb" }
-  | { state: "ok"; deps: Deps; db: SqlClient; q: Q; prev: Q & { kind: "month" | "days" }; demo: boolean; from: string; to: string; notice?: string; who: "local user" | "dashboard"; locked: boolean };
+  | { state: "ok"; deps: Deps; db: SqlClient; q: Q; prev: Q & { kind: "month" | "days" }; demo: boolean; from: string; to: string; notice?: string; who: "local user" | "dashboard" | "open demo"; locked: boolean };
 
 const IST_MS = 330 * 60_000;
 const ist = (d: Date) => new Date(d.getTime() + IST_MS).toISOString().slice(0, 10);

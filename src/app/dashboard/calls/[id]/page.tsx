@@ -41,7 +41,7 @@ export default async function CallPage({ params, searchParams }: { params: Promi
           <Block title="The caller and the call">
             <dl className="kv">
               <Row k="Name" v={d.caller?.name} />
-              <Row k="Phone" v={d.caller?.phoneMasked ? <RevealPhone callId={d.call.id} masked={d.caller.phoneMasked} demo={ctx.demo} /> : null} />
+              <Row k="Phone" v={d.caller?.phoneMasked ? (ctx.who === "open demo" ? d.caller.phoneMasked : <RevealPhone callId={d.call.id} masked={d.caller.phoneMasked} demo={ctx.demo} />) : null} />
               <Row k="Email" v={d.caller?.emailMasked} />
               <Row k="Language" v={langName(e?.language)} />
               <Row k="What happened" v={<Outcome o={d.call.outcome} />} />
@@ -51,7 +51,7 @@ export default async function CallPage({ params, searchParams }: { params: Promi
               <Row k="Recording" v={d.call.recordingUrl ? <a href={d.call.recordingUrl} target="_blank" rel="noreferrer noopener">Listen to it</a> : null} />
               <Row k="In short" v={d.call.summary} />
             </dl>
-            {!ctx.demo && d.caller?.phoneMasked && <p className="muted small" style={{ marginTop: 12 }}>Showing a number is recorded as “{ctx.who}” and it hides again after 30 seconds.</p>}
+            {!ctx.demo && ctx.who !== "open demo" && d.caller?.phoneMasked && <p className="muted small" style={{ marginTop: 12 }}>Showing a number is recorded as “{ctx.who}” and it hides again after 30 seconds.</p>}
           </Block>
 
           {e && <Block title="What they asked for">

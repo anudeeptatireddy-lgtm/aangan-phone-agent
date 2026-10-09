@@ -68,3 +68,7 @@ Dated, one-line entries for project-level decisions. Rule and wording decisions 
 - `pnpm replay` / `tests/replay/`: 20 phone calls + 10 hard cases + 8 planted price violations, all through the real pipeline on fakes. 30/30 pass, gate caught 8/8, 0 price numbers. A price leak in any call fails the run (tested). The agent's side is a script of the approved wording: Vaani's live wording stays unproven until a real chat or call.
 - Bug found and fixed by H10: a caller who only asks for a person (no project details) now ends as `escalated`, not `review` (`src/core/postcall/pipeline.ts`).
 - Hard-case 5's "apologises" and hard-case 3's live transfer belong to the live agent: marked "live agent only", not tested offline. Prompt-only mode has no live caller lookup, so "recognises the number" is checked after the call.
+
+## 2026-10-09: the dashboard is open without a password (owner decision: the professor must see it)
+- New explicit switch `DASHBOARD_OPEN=true` (production only; exact value). It beats the password rule and the fail-closed default stays for every other value. The open dashboard is READ-ONLY: phone reveal and review overturns return 403 and the buttons are hidden, so a public link can never show a real number or change a review.
+- Set on Vercel; `DASHBOARD_PASSWORD` removed from Vercel (it stays in `.env.local`, unused). Only test data may be in the database while it is open: with real caller data, unset `DASHBOARD_OPEN` and set the password again (rule 6).

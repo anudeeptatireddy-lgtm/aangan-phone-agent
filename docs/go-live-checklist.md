@@ -30,6 +30,7 @@ Secrets that we make up ourselves (run in Terminal; store each in a password man
 | `TELEGRAM_WEBHOOK_SECRET` | `openssl rand -hex 24` (16 to 256 characters of letters, digits, `_`, `-`) |
 | `CRON_SECRET` | `openssl rand -hex 24` |
 | `DASHBOARD_PASSWORD` | a passphrase of at least 12 characters |
+| `DASHBOARD_OPEN` | `true` only for a public read-only demo (no password; phone reveal and review changes are refused). Not for real caller data. |
 
 > **Never change `PHONE_HASH_PEPPER` or `PHONE_ENC_KEY` after real calls exist.** The pepper is how a returning caller is recognised, and the key is the only way to read stored phone numbers. Use new values for production (do not reuse the ones in your local `.env.local`), and keep a copy somewhere safe.
 

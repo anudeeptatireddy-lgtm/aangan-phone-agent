@@ -45,7 +45,9 @@ const ReviewBody = z.object({ callId: z.string().min(1), overturned: z.boolean()
 export async function handleDashApi(req: Request, deps: Deps): Promise<Response> {
   const refused = dashboardGate(req, deps);
   if (refused) return refused;
-  const who = accessOf(deps).mode === "open" ? "local user" : "dashboard";
+  const access = accessOf(deps);
+  const publicDemo = access.mode === "open" && access.public;
+  const who = access.mode === "open" ? "local user" : "dashboard";
   const db = deps.db;
   if (!db) return json(503, { error: "database_not_configured" }); // the dashboard reads Postgres only
   const url = new URL(req.url);
@@ -88,6 +90,7 @@ export async function handleDashApi(req: Request, deps: Deps): Promise<Response>
   }
   if (head === "calls" && a && b === "reveal") {
     if (req.method !== "POST") return json(405, { error: "post_only" });
+    if (publicDemo) return json(403, { error: "read_only_demo" }); // a public link never shows a real number
     const ip = (req.headers.get("x-forwarded-for")?.split(",")[0] ?? req.headers.get("x-real-ip") ?? "").trim() || undefined;
     const r = await revealPhone(db, deps.postcall, { vendorCallId: a, demo: q.demo, ip, who });
     if (r.ok) return json(200, { phone: r.phone });
@@ -97,6 +100,7 @@ export async function handleDashApi(req: Request, deps: Deps): Promise<Response>
     const week = url.searchParams.get("week") ?? weekStartOf(deps.now());
     if (GET) return isMonday(week) ? json(200, await getReview(db, { demo: q.demo, weekStart: week })) : json(400, { error: "bad_week" });
     if (req.method === "POST") {
+      if (publicDemo) return json(403, { error: "read_only_demo" });
       const body = ReviewBody.safeParse(await req.json().catch(() => null));
       if (!body.success) return json(400, { error: "bad_body" });
       // No login locally means no name: the review is "local user". Behind the password the reviewer types their own name (self-declared).

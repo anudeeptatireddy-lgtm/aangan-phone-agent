@@ -1,14 +1,18 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 // Who may open the dashboard. Decided from NODE_ENV and DASHBOARD_PASSWORD ONLY: never from the Host header, the URL or any other request detail,
-// because a caller controls those. Outside production there is no login. In production a password is required, and without one nothing opens.
+// because a caller controls those. Outside production there is no login. In production a password is required, and without one nothing opens,
+// unless the owner sets DASHBOARD_OPEN=true for a public read-only demo.
 export type Access =
-  | { mode: "open"; who: "local user" }
+  | { mode: "open"; who: "local user"; public: false }
+  | { mode: "open"; who: "open demo"; public: true }          // production with DASHBOARD_OPEN=true: a public, READ-ONLY demo (no phone reveal, no review changes)
   | { mode: "password"; password: string; who: "dashboard" }
   | { mode: "blocked" };
 
-export function dashboardAccess(env: { NODE_ENV: string; DASHBOARD_PASSWORD?: string }): Access {
-  if (env.NODE_ENV !== "production") return { mode: "open", who: "local user" };
+export function dashboardAccess(env: { NODE_ENV: string; DASHBOARD_PASSWORD?: string; DASHBOARD_OPEN?: string }): Access {
+  if (env.NODE_ENV !== "production") return { mode: "open", who: "local user", public: false };
+  // An explicit, exact opt-in. Unset, "false" or any other value keeps the fail-closed rule below.
+  if (env.DASHBOARD_OPEN === "true") return { mode: "open", who: "open demo", public: true };
   if (!env.DASHBOARD_PASSWORD) return { mode: "blocked" };
   return { mode: "password", password: env.DASHBOARD_PASSWORD, who: "dashboard" };
 }

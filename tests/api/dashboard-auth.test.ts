@@ -11,12 +11,13 @@ const BASE = { PHONE_HASH_PEPPER: "pepper-0123456789ab", PHONE_ENC_KEY: ENC_KEY,
 const NOW = new Date("2026-10-07T06:00:00Z");
 const SEP = "from=2026-09-01&to=2026-09-30";
 const PATHS = [`overview?${SEP}`, `metrics/funnel?${SEP}`, `calls?${SEP}`, "calls/c1", `designers?${SEP}`, "review?week=2026-09-07"];
-let w: World; let dev: Deps; let prod: Deps; let locked: Deps;
+let w: World; let dev: Deps; let prod: Deps; let locked: Deps; let open: Deps;
 beforeAll(async () => {
   ({ w } = await september());
   dev = makeDeps({ env: { ...BASE, NODE_ENV: "development" }, now: () => NOW, db: w.db });
   prod = makeDeps({ env: { ...BASE, NODE_ENV: "production", DASHBOARD_PASSWORD: PASSWORD }, now: () => NOW, db: w.db });
   locked = makeDeps({ env: { ...BASE, NODE_ENV: "production" }, now: () => NOW, db: w.db });
+  open = makeDeps({ env: { ...BASE, NODE_ENV: "production", DASHBOARD_OPEN: "true" }, now: () => NOW, db: w.db });
 }, 120_000);
 
 const call = (deps: Deps, path: string, h: Record<string, string> = {}, init: RequestInit = {}, url = "http://localhost:3000") =>
@@ -119,3 +120,34 @@ describe("who did it: 'local user' locally, 'dashboard' behind the password", ()
     expect((await w.db.query("select reviewer from call_reviews where reviewed_at is not null")).rows).toEqual([{ reviewer: "Nikhil" }]);
   });
 });
+
+describe("the open demo: production with DASHBOARD_OPEN=true needs no password, and is read-only", () => {
+  it("every dashboard endpoint answers with no credentials", async () => {
+    for (const p of PATHS) expect((await call(open, p)).status, p).toBe(200);
+  });
+  it("it is an explicit switch: only the exact value true opens it; unset, false or anything else stays locked", async () => {
+    for (const v of [undefined, "false", "TRUE", "1", "yes", ""]) {
+      const d = makeDeps({ env: { ...BASE, NODE_ENV: "production", ...(v === undefined ? {} : { DASHBOARD_OPEN: v as "true" }) }, now: () => NOW, db: w.db });
+      expect((await call(d, "overview")).status, String(v)).toBe(503);
+    }
+  });
+  it("with a password also set, the open switch wins (the owner chose a public demo)", async () => {
+    const d = makeDeps({ env: { ...BASE, NODE_ENV: "production", DASHBOARD_PASSWORD: PASSWORD, DASHBOARD_OPEN: "true" }, now: () => NOW, db: w.db });
+    expect((await call(d, "overview")).status).toBe(200);
+  });
+  it("a public link can never reveal a real phone number or change a review: both are refused", async () => {
+    const before = Number(((await w.db.query("select count(*)::int n from phone_reveals")).rows[0] as { n: number }).n);
+    expect((await call(open, "calls/c1/reveal", {}, { method: "POST" })).status).toBe(403);
+    expect(Number(((await w.db.query("select count(*)::int n from phone_reveals")).rows[0] as { n: number }).n)).toBe(before);
+    const rows = ((await w.db.query("select count(*)::int n from call_reviews where reviewed_at is not null")).rows[0] as { n: number }).n;
+    expect((await call(open, "review", { "content-type": "application/json" }, { method: "POST", body: JSON.stringify({ callId: "c1", overturned: true, reason: "x" }) })).status).toBe(403);
+    expect(((await w.db.query("select count(*)::int n from call_reviews where reviewed_at is not null")).rows[0] as { n: number }).n).toBe(rows);
+  });
+  it("the access decision stays a pure function of the environment, never the Host header", async () => {
+    expect(dashboardAccess({ NODE_ENV: "production", DASHBOARD_OPEN: "true" })).toMatchObject({ mode: "open", public: true });
+    expect(dashboardAccess({ NODE_ENV: "production", DASHBOARD_OPEN: "false" })).toEqual({ mode: "blocked" });
+    expect(dashboardAccess({ NODE_ENV: "development", DASHBOARD_OPEN: "true" })).toMatchObject({ mode: "open", public: false, who: "local user" });
+    expect((await call(locked, "overview", { host: "localhost" }, {}, "http://localhost")).status).toBe(503);
+  });
+});
+

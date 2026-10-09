@@ -40,7 +40,7 @@ export default async function Review({ searchParams }: { searchParams: Promise<S
             <p className="small" style={{ margin: 0 }}><a href={`/dashboard/calls/${encodeURIComponent(i.callId)}${carry(ctx)}`}>Read and listen to the call ›</a></p>
             {i.reviewedAt && <p className="small muted" style={{ margin: "8px 0 0" }}>{i.overturned ? <b style={{ color: "var(--bad)" }}>Overturned</b> : <b>The agent was right</b>} · {i.reviewer} · {whenShort(i.reviewedAt)}{i.reason ? ` · “${i.reason}”` : ""}</p>}
           </div>
-          <ReviewActions callId={i.callId} demo={ctx.demo} local={local} critical={/booked|escalated|not_fit/.test(i.agentDecision)} state={i.reviewedAt ? (i.overturned ? "overturned" : "confirmed") : "open"} />
+          {ctx.who === "open demo" ? <span className="muted small">{i.reviewedAt ? (i.overturned ? "overturned" : "confirmed") : "read-only demo"}</span> : <ReviewActions callId={i.callId} demo={ctx.demo} local={local} critical={/booked|escalated|not_fit/.test(i.agentDecision)} state={i.reviewedAt ? (i.overturned ? "overturned" : "confirmed") : "open"} />}
         </article>))}
       <p className="muted small" style={{ marginTop: 22 }}>{local ? "There is no login on this computer, so checks are recorded as “local user”." : "One shared password means no personal login, so the name you type is the record."} ({outcomeWord("booked")}, passed to a person and not-a-fit decisions need a reason to overturn.)</p>
     </Page>
