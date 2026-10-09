@@ -27,7 +27,7 @@ export function Page({ ctx, page, path, children }: { ctx: Ok; page: PageKey; pa
           <nav className="mainnav" aria-label="Dashboard">{nav.map(([name, href, key]) => <a key={key} href={`${href}${c}`} aria-current={key === page ? "page" : undefined}>{name}</a>)}</nav>
           <div className="tools">
             <div className="switch" role="group" aria-label="Which data">
-              <a href={`${path}${carry({ ...ctx, demo: false })}`} aria-current={!ctx.demo}>Live</a>
+              <a href={`${path}${carry({ ...ctx, demo: false }, { data: "live" })}`} aria-current={!ctx.demo}>Live</a>
               <a href={`${path}${carry({ ...ctx, demo: true })}`} aria-current={ctx.demo}>Demo</a>
             </div>
             <details className="period">

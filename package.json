@@ -18,7 +18,8 @@
     "seed:demo": "tsx scripts/seed-demo.ts",
     "seed:demo:reset": "tsx scripts/seed-demo-reset.ts",
     "hubspot:stages": "tsx scripts/hubspot-stages.ts",
-    "replay": "tsx scripts/replay.ts"
+    "replay": "tsx scripts/replay.ts",
+    "seed:demo:live": "tsx scripts/seed-demo-live.ts"
   },
   "dependencies": {
     "next": "^16.4.0",

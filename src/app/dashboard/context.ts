@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { dashboardAccess, verdictFor } from "@/server/dashboard-auth";
+import { chooseData } from "./data-choice";
 import { parseDashQuery } from "@/server/handlers/dashboard-api";
 import { getDeps, type Deps } from "@/server/deps";
 import { previousRange, type Q } from "@/db/dash-metrics";
@@ -23,7 +24,8 @@ export async function dashContext(sp: SP): Promise<DashCtx> {
   const jar = await cookies();
   if (verdictFor(new Request("http://x", { headers: { cookie: `dash=${jar.get("dash")?.value ?? ""}` } }), access) !== "ok") return { state: "login", error: !!sp.error };
   if (!deps.db) return { state: "nodb" };
-  const demo = sp.data === "demo";
+  const counts = (await deps.db.query("select count(*) filter (where not is_demo)::int as live, count(*) filter (where is_demo)::int as demo from calls")).rows[0] as { live: number; demo: number } | undefined;
+  const demo = chooseData(sp.data, Number(counts?.live ?? 0), Number(counts?.demo ?? 0)) === "demo";
   const params = new URLSearchParams();
   if (sp.from) params.set("from", sp.from);
   if (sp.to) params.set("to", sp.to);
