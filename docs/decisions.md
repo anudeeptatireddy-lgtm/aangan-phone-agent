@@ -45,3 +45,9 @@ Dated, one-line entries for project-level decisions. Rule and wording decisions 
 - Hobby allows only daily cron: `vercel.json` runs the tick once a day (03:00 UTC); the every-minute tick must come from a free pinger hitting `/api/cron/tick` with `Authorization: Bearer <CRON_SECRET>`.
 - Supabase connection: TLS verified against Supabase Root 2021 CA (`src/db/supabase-ca.ts`, valid to 2031).
 - Live URL (2026-10-09): https://aangan-phone-agent-eight.vercel.app (NOT `aangan-phone-agent.vercel.app`, which belongs to someone else). Verified live: dashboard serves, tick answers 200 in 0.3 s with the secret and 401 without, wrong webhook secret gives 404, database reachable (overview 200, zero calls), HubSpot deal read runs inside the tick. Gemini extraction stays OFF until `GEMINI_PAID_TIER_CONFIRMED=true` is set in `.env.local` and in Vercel.
+
+## 2026-10-09: Cal.com set up through its v2 API (owner's key in `.env.local`)
+- Schedule "Aangan consultation hours" (id 2476538): Mon-Sat 10:00-19:00 Asia/Kolkata. Event type "Aangan consultation" (id 7409577, slug `aangan-consultation`): 60 min, slots every 30 min, 30-min buffers, phone number required (name and email kept), Cal Video location.
+- Webhook 8382e111-... (created by the owner) points at `/api/calcom/webhook`; its signing secret was empty, so it is now set to `CALCOM_SIGNING_SECRET`. Verified on the live app: a correctly signed ping is accepted, a wrongly signed one gets 401. A real delivery from a real booking is still unverified.
+- The webhook is account-wide (no event type filter) and the account still has 3 sample event types; a booking on those would reach the router as an orphan.
+- Cal.com's API rejects Python's default user-agent with 403: send a normal one.
