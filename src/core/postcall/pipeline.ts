@@ -214,7 +214,11 @@ export class PostCallPipeline {
 
     // ---- what happens next (delivered by the outbox workers) ----
     if (promptOnly) {
-      if (escalated) return finish("escalated", enquiryId); // asked for a person: the details are saved for them; the front desk calls back
+      if (escalated) {
+        // asked for a person: the details are saved for them; the front desk calls back. A qualified enquiry also goes to a designer to call back.
+        if (saved.fit === "fit") await repo.enqueue("designer_email", { enquiryId, vendorCallId: id, callback: true }, `designer_email:callback:${id}`);
+        return finish("escalated", enquiryId);
+      }
       // The booking (if any) lives in Cal.com and arrives by its own webhook: the router matches it and decides who is told what.
       await repo.enqueue("call_routing", { vendorCallId: id, enquiryId, claimedBooking: rec.signals?.claimedBooking === true }, `call_routing:${id}`);
       const result = await finish("review", enquiryId, { }); // provisional: the router sets the final outcome

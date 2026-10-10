@@ -169,6 +169,24 @@ describe("end to end with Cal.com (both orders)", () => {
       expect(d2.fakeEmail!.sent.filter((m) => m.subject.includes("New project assigned"))).toHaveLength(1);
     } finally { d = dd; }
   });
+  it("a qualified call that booked nothing: after the sweep a designer is asked to call back, and the email says the phone number was not captured (web call)", async () => {
+    let t = NOW;
+    const d3 = makeDeps({ env: { ...ENV, DESIGNER_EMAIL_TO: "owner@example.com" }, now: () => t });
+    const dd = d; d = d3;
+    try {
+      seed("e6", { entity: { booked_consultation: "no" }, history: null }); await send(post("e6"), SECRET, d3);
+      t = new Date(NOW.getTime() + 20 * 60_000);
+      await d3.router.routePending(); await d3.outbox.run();
+      const mails = d3.fakeEmail!.sent.filter((m) => m.subject.includes("no consultation booked yet"));
+      expect(mails).toHaveLength(1);
+      expect(mails[0]!.to).toBe("owner@example.com");
+      expect(mails[0]!.text).toContain("Phone: not captured");
+      expect(mails[0]!.text).toContain("call the customer back");
+      expect(mails[0]!.text).not.toContain("Meeting link");
+      await d3.outbox.run();
+      expect(d3.fakeEmail!.sent.filter((m) => m.subject.includes("no consultation booked yet"))).toHaveLength(1);
+    } finally { d = dd; }
+  });
   it("booking first, call later: matched as soon as the call is processed", async () => {
     await calSend("bk-e2");
     seed("e2");

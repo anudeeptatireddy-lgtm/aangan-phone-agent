@@ -1,6 +1,7 @@
 import { dashContext, type SP } from "./context";
 import { overview } from "@/db/dash-metrics";
-import { dailyCounts } from "@/db/dash-days";
+import { dailyCounts, callbacksNeeded } from "@/db/dash-days";
+import { Callbacks } from "./Callbacks";
 import { Calendar } from "./Calendar";
 import { DaysChart, Empty, Funnel, HoursChart, Page, Rank, Section, gateFor, inr, inrShort, label, langName, mins, pct, periodTitle, plural, previousName, vs } from "./ui";
 
@@ -10,7 +11,7 @@ export const metadata = { title: "Aangan: what happened to the calls" };
 export default async function Overview({ searchParams }: { searchParams: Promise<SP> }) {
   const ctx = await dashContext(await searchParams);
   if (ctx.state !== "ok") return gateFor(ctx);
-  const [o, p, days] = await Promise.all([overview(ctx.db, ctx.q), overview(ctx.db, ctx.prev), dailyCounts(ctx.db, ctx.q)]);
+  const [o, p, days, callbacks] = await Promise.all([overview(ctx.db, ctx.q), overview(ctx.db, ctx.prev), dailyCounts(ctx.db, ctx.q), callbacksNeeded(ctx.db, ctx.q)]);
   const period = periodTitle(ctx.from, ctx.to), before = previousName(ctx);
   const stage = (k: string) => o.funnel.stages.find((s) => s.key === k)!;
   const prevStage = (k: string) => p.funnel.stages.find((s) => s.key === k)!.count;
@@ -50,6 +51,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
 
       {received > 0 && <>
         <Funnel stages={o.funnel.stages} title="What happened to every call" sub={`${period}. The ribbon is the calls; it narrows as fewer of them reach each step.`} />
+        <Callbacks rows={callbacks} demo={ctx.demo} />
         <Calendar days={days} from={ctx.from} to={ctx.to} demo={ctx.demo} />
         <details className="all">
           <summary>Show all ten steps</summary>

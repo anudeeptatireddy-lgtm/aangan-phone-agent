@@ -156,7 +156,11 @@ export class CallRouter {
   private async sweep(call: CallRow, item: OutboxRow, rivals: CalBooking[]): Promise<RouteOutcome> {
     const id = call.vendorCallId;
     const row = call.enquiryId ? await this.d.repo.getEnquiry(call.enquiryId) : null;
-    const dealIfFit = async () => { if (row?.fit === "fit") await this.d.repo.enqueue("hubspot_deal", { enquiryId: row.id, vendorCallId: id, bookingId: null }, `hubspot_deal:${row.id}`); };
+    const dealIfFit = async () => {
+      if (row?.fit !== "fit") return;
+      await this.d.repo.enqueue("hubspot_deal", { enquiryId: row.id, vendorCallId: id, bookingId: null }, `hubspot_deal:${row.id}`);
+      await this.d.repo.enqueue("designer_email", { enquiryId: row.id, vendorCallId: id, callback: true }, `designer_email:callback:${id}`); // qualified, nothing booked: a designer calls them back
+    };
 
     if (rivals.length >= 2) {
       // Normal, unless the consultation is within 24 hours: then someone must link it today or no designer turns up (owner decision).

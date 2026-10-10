@@ -105,3 +105,8 @@ Dated, one-line entries for project-level decisions. Rule and wording decisions 
 - pnpm 12 refuses esbuild's install script until approved: `pnpm-workspace.yaml` has `allowBuilds: { esbuild: true }` (the `pnpm` key in package.json is no longer read).
 - The CI steps (frozen install, typecheck, test, seed check, build) all pass locally.
 - Vaani's webhook can arrive 15-20 minutes after a call. There is no working call-listing endpoint (call-history fails with "Invalid client_id format" on our key; it takes no client id parameter), so a call can only be caught up by its id: `pnpm catchup <call_id>...` (ids from Vaani -> Conversations -> History) re-delivers it to our own live webhook, which re-fetches it from Vaani. Idempotent.
+
+## 2026-10-10: callback branch (owner decision): qualified callers who did not book
+- A qualified (fit) call with no consultation booked now queues a `designer_email` with `callback: true` (router sweep, and the escalated "asked for a person" path). A designer is picked by rotation (`last_assigned_at`) and emailed "New enquiry, no consultation booked yet ... please call the customer back". Every designer email now has a CALLER block: name, phone, email. A web call has no phone, so it reads "Phone: not captured (this was a web call...)".
+- Dashboard: "Needs a callback" section under the funnel (who, why, phone or placeholder, whether the designer was emailed). "With a designer" keeps its meaning (a booked consultation assigned to a designer); the callback branch is separate and honestly named.
+- `scripts/send-old-designer-emails.ts` re-sent the callback emails for the calls hit by the transcript bug.

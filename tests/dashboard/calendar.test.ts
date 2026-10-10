@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { monthGrid, monthsIn } from "@/app/dashboard/calendar-grid";
-import { dailyCounts } from "@/db/dash-days";
+import { dailyCounts, callbacksNeeded } from "@/db/dash-days";
 import { september, type World } from "./fixture";
 
 describe("the calendar grid", () => {
@@ -31,5 +31,15 @@ describe("calls and converted calls per day", () => {
     const all = Number(((await w.db.query("select count(*)::int n from calls where is_demo = false and coalesce(rang_at, ended_at, created_at) >= '2026-08-31T18:30:00Z' and coalesce(rang_at, ended_at, created_at) < '2026-09-30T18:30:00Z'")).rows[0] as { n: number }).n);
     expect(total).toBe(all); expect(total).toBeGreaterThan(0);
     for (const [d, v] of Object.entries(days)) { expect(d).toMatch(/^2026-09-\d\d$/); expect(v.booked).toBeLessThanOrEqual(v.calls); }
+  });
+
+  it("callbacks: every row is a qualified call that is not booked, and the totals add up", async () => {
+    const q = { from: new Date("2026-08-31T18:30:00Z"), to: new Date("2026-09-30T18:30:00Z"), demo: false };
+    const rows = await callbacksNeeded(w.db, q);
+    for (const r of rows) { expect(["Asked to speak to a person", "No consultation was booked on the call"]).toContain(r.reason); expect(r.booked).toBeLessThan(r.qualified); }
+    if (rows.length) expect(rows.length).toBeLessThanOrEqual(rows[0]!.qualified - rows[0]!.booked);
+    const booked = Number(((await w.db.query("select count(*)::int n from calls c join bookings b on b.enquiry_id = c.enquiry_id where not c.is_demo and b.status <> 'cancelled'")).rows[0] as { n: number }).n);
+    for (const r of rows) { const clash = await w.db.query("select 1 from calls c join bookings b on b.enquiry_id = c.enquiry_id where c.vaani_call_id = $1 and b.status <> 'cancelled'", [r.callId]); expect(clash.rows).toHaveLength(0); }
+    expect(booked).toBeGreaterThanOrEqual(0);
   });
 });

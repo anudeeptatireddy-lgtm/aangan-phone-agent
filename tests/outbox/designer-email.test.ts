@@ -24,4 +24,13 @@ describe("the designer's new-project email", () => {
     for (const part of ["You have a new enquiry", "No consultation is booked yet", "call the customer back"]) expect(m.text, part).toContain(part);
     expect(m.text).not.toContain("Meeting link"); expect(m.text).not.toContain("IST");
   });
+  it("always names the caller's phone and email; a web call has no phone, so a placeholder says so and asks for a callback", () => {
+    const web = buildDesignerEmail({ ...base, startsAt: null, meetingUrl: null, phone: null, callerEmail: null });
+    expect(web.text).toContain("Phone: not captured");
+    expect(web.text).toContain("web call");
+    expect(web.text).toContain("Email: not given");
+    const real = buildDesignerEmail({ ...base, phone: "+91 98••••••12", callerEmail: "priya@example.com" });
+    expect(real.text).toContain("Phone: +91 98••••••12"); expect(real.text).toContain("Email: priya@example.com");
+    expect(real.text).not.toContain("not captured");
+  });
 });

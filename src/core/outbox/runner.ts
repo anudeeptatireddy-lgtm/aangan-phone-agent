@@ -73,6 +73,7 @@ export class OutboxRunner {
 
   /** "You have a new project": the details, the meeting link and the transcript of the call, emailed to the assigned designer. */
   private async designerEmail(item: OutboxRow) {
+    if (item.payload.callback === true) return this.callbackEmail(item);
     const booking = await this.d.bookings.getBooking(String(item.payload.bookingId));
     if (!booking || (booking.status !== "confirmed" && booking.status !== "held")) return; // cancelled since
     const designer = await this.d.bookings.getDesigner(String(item.payload.designerId ?? booking.designerId));
@@ -84,8 +85,28 @@ export class OutboxRunner {
     const cal = item.payload.bookingUid && this.d.cal ? await this.d.cal.get(String(item.payload.bookingUid)) : null;
     const caller = enquiry?.callerId ? await this.d.repo.callerContact(enquiry.callerId) : null;
     const msg = buildDesignerEmail({ designerName: designer.name, callerName: caller?.name ?? null, location: enquiry?.input.location ?? null, startsAt: booking.startsAt,
-      meetingUrl: cal?.meetingUrl ?? null, details: enquiry?.designerNote ?? "", transcript: call?.transcript ?? [], forDesigner: this.d.designerEmailTo && designer.email !== this.d.designerEmailTo ? designer.name : undefined });
+      meetingUrl: cal?.meetingUrl ?? null, phone: caller?.phone ?? null, callerEmail: caller?.email ?? booking.callerEmail ?? null, details: enquiry?.designerNote ?? "", transcript: call?.transcript ?? [], forDesigner: this.d.designerEmailTo && designer.email !== this.d.designerEmailTo ? designer.name : undefined });
     await this.d.email.send({ to, ...msg, idempotencyKey: item.dedupeKey });
+  }
+
+  /** A qualified enquiry that did not book a consultation: a designer (by rotation) is asked to call the customer back. No booking, no meeting link, and often no phone number (web calls). */
+  private async callbackEmail(item: OutboxRow) {
+    const enquiry = await this.d.repo.getEnquiry(String(item.payload.enquiryId));
+    if (!enquiry || enquiry.fit !== "fit") return;
+    const existing = await this.d.bookings.bookingForEnquiry(enquiry.id);
+    if (existing && existing.status !== "cancelled") return; // it booked since: the booking path emails the designer
+    const designers = (await this.d.bookings.listActiveDesigners()).sort((a, b) => (a.lastAssignedAt?.getTime() ?? 0) - (b.lastAssignedAt?.getTime() ?? 0) || a.name.localeCompare(b.name));
+    const designer = designers[0];
+    if (!designer) throw new Error("no active designer to ask for the callback");
+    const to = this.d.designerEmailTo ?? designer.email;
+    if (!to) throw new Error(`designer ${designer.name} has no email address`);
+    const call = await this.d.repo.getCall(String(item.payload.vendorCallId));
+    const caller = enquiry.callerId ? await this.d.repo.callerContact(enquiry.callerId) : null;
+    const msg = buildDesignerEmail({ designerName: designer.name, callerName: caller?.name ?? null, location: enquiry.input.location ?? null, startsAt: null, meetingUrl: null,
+      phone: caller?.phone ?? null, callerEmail: caller?.email ?? null, details: enquiry.designerNote ?? call?.summary ?? "", transcript: call?.transcript ?? [],
+      forDesigner: this.d.designerEmailTo && designer.email !== this.d.designerEmailTo ? designer.name : undefined });
+    await this.d.email.send({ to, ...msg, idempotencyKey: item.dedupeKey });
+    await this.d.bookings.touchLastAssigned(designer.id, this.d.now()); // rotation: the next callback goes to the next designer
   }
 
   private async designerNoteUpdate(item: OutboxRow) {

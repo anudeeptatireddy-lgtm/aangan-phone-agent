@@ -10,6 +10,8 @@ export interface DesignerEmailInput {
   meetingUrl: string | null;
   details: string;              // the stored designer note (built by noteLines)
   transcript: CallTurn[];
+  phone?: string | null;        // the caller's number; null/absent = none (a browser/web call has no phone number)
+  callerEmail?: string | null;
   forDesigner?: string;         // set when the mail is redirected (demo / Resend test sender): who it is really for
 }
 
@@ -25,6 +27,9 @@ export function buildDesignerEmail(i: DesignerEmailInput): { subject: string; te
   const text = [
     `Hi ${i.designerName},`, "",
     booked ? "You have a new project. The details are below, including the meeting link with the customer." : "You have a new enquiry. No consultation is booked yet: the caller was told someone will call back during working hours.", "",
+    "THE CALLER", `Name: ${i.callerName ?? "not given"}`,
+    `Phone: ${i.phone ? i.phone : "not captured (this was a web call, so no phone number came with it). Please get it on the callback."}`,
+    `Email: ${i.callerEmail ?? "not given"}`, "",
     ...(booked ? ["THE CONSULTATION", `When: ${when(i.startsAt!)}`, `Meeting link: ${link}`, ""] : ["NEXT STEP", "Please call the customer back and offer a consultation.", ""]),
     "PROJECT DETAILS", i.details || "(No details were captured.)", "",
     "WHAT WAS SAID ON THE CALL", talk, "",
@@ -34,6 +39,7 @@ export function buildDesignerEmail(i: DesignerEmailInput): { subject: string; te
   const html = `<div style="font-family:system-ui,sans-serif;font-size:15px;line-height:1.5;max-width:640px">
 <p>Hi ${esc(i.designerName)},</p><p><b>${booked ? "You have a new project." : "You have a new enquiry."}</b> ${booked ? "The details are below, including the meeting link with the customer." : "No consultation is booked yet: the caller was told someone will call back during working hours."}</p>
 ${booked ? `<h3 style="margin:18px 0 4px">The consultation</h3><p style="margin:0">When: ${esc(when(i.startsAt!))}<br>Meeting link: ${linkHtml}</p>` : `<h3 style="margin:18px 0 4px">Next step</h3><p style="margin:0">Please call the customer back and offer a consultation.</p>`}
+<h3 style="margin:18px 0 4px">The caller</h3><p style="margin:0">Name: ${esc(i.callerName ?? "not given")}<br>Phone: ${esc(i.phone ? i.phone : "not captured (this was a web call, so no phone number came with it). Please get it on the callback.")}<br>Email: ${esc(i.callerEmail ?? "not given")}</p>
 <h3 style="margin:18px 0 4px">Project details</h3><pre style="white-space:pre-wrap;font:inherit;margin:0">${esc(i.details || "(No details were captured.)")}</pre>
 <h3 style="margin:18px 0 4px">What was said on the call</h3><pre style="white-space:pre-wrap;font:inherit;margin:0">${esc(talk)}</pre>
 <p style="color:#666;margin-top:18px">${booked ? "This was set up by Aangan's virtual assistant. Please be on the link at the time above." : "This enquiry was taken by Aangan's virtual assistant."}</p></div>`;

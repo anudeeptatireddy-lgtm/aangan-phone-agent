@@ -109,7 +109,7 @@ describe("prompt_only: complaints and existing clients (hard rule 4)", () => {
     const r = await t.pipeline.process(rec("c4", { signals: { wantsPerson: true } }));
     expect(r.outcome).toBe("escalated");
     expect(await t.repo.escalationsForCall("c4")).toEqual([expect.objectContaining({ reason: "human_requested", mode: "callback_sla" })]);
-    expect(kinds(t.repo)).toEqual([]);                 // no routing, no booking path: a person decides
+    expect(kinds(t.repo)).toEqual(["designer_email"]); // no routing, no booking path: a person decides; a qualified enquiry also goes to a designer to call back
     expect((await t.repo.getEnquiry(r.enquiryId!))).not.toBeNull(); // but what they told us is kept
   });
   it("re-processing the same call never duplicates the escalation or the alerts", async () => {
