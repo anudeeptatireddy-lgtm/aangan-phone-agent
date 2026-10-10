@@ -26,6 +26,8 @@ export interface CallRow {
   recordingExpiresAt: Date | null;
   transcript: CallTurn[] | null;
   summary: string | null;
+  contactName: string | null;   // what the caller said their name was, kept here when there is no phone number (a web call has no callers row)
+  contactEmail: string | null;
   postCallStatus: PostCallStatus;
   processedAt: Date | null;
   costAiInr: number | null;

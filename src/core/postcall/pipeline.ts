@@ -132,6 +132,8 @@ export class PostCallPipeline {
     const e = this.d.refine ? this.d.refine(result.data, rec) : result.data;
     const mapping = toFitInput(e, startedAt);
     if (callerId && (mapping.callerName || mapping.callerEmail || mapping.language)) await repo.updateCaller(callerId, { name: mapping.callerName, email: mapping.callerEmail, language: mapping.language });
+    // A web call has no phone number and so no caller row: keep the name and email on the call, or they would be lost.
+    if (!callerId && (mapping.callerName || mapping.callerEmail)) await repo.upsertCall(id, { contactName: mapping.callerName ?? null, contactEmail: mapping.callerEmail ?? null });
 
     // ---- hard rule 4: did a complaint slip through? ----
     const escalations = await repo.escalationsForCall(id);

@@ -51,14 +51,14 @@ export class OutboxRunner {
     if (await this.d.repo.getCrmLink(enquiryId)) return; // a previous attempt got as far as HubSpot: never create a second deal
     const enquiry = await this.d.repo.getEnquiry(enquiryId);
     if (!enquiry) throw new Error("enquiry not found");
-    const caller = enquiry.callerId ? await this.d.repo.callerContact(enquiry.callerId) : null;
+    const caller = await this.contact(enquiry.callerId, String(item.payload.vendorCallId));
     const [first, ...rest] = (caller?.name ?? "").trim().split(/\s+/).filter(Boolean);
     const f = enquiry.input;
     const what = f.is_villa ? "Villa" : f.bhk ? `${f.bhk}BHK` : f.project_type ?? "Enquiry";
     const name = [f.location, what].filter(Boolean).join(" ") + (caller?.name ? ` · ${caller.name}` : "");
     const description = enquiry.designerNote ?? "Qualified enquiry (fit); no consultation booked on the call. Needs follow-up.";
     const r = await this.d.crm.createDealForEnquiry({
-      contact: { email: caller?.email ?? undefined, phone: caller?.phone, firstName: first, lastName: rest.join(" ") || undefined },
+      contact: { email: caller?.email ?? undefined, phone: caller?.phone ?? undefined, firstName: first, lastName: rest.join(" ") || undefined },
       deal: { name, description },
     });
     await this.d.repo.saveCrmLink(enquiryId, r, this.d.now());
@@ -83,10 +83,18 @@ export class OutboxRunner {
     const enquiry = await this.d.repo.getEnquiry(String(item.payload.enquiryId));
     const call = await this.d.repo.getCall(String(item.payload.vendorCallId));
     const cal = item.payload.bookingUid && this.d.cal ? await this.d.cal.get(String(item.payload.bookingUid)) : null;
-    const caller = enquiry?.callerId ? await this.d.repo.callerContact(enquiry.callerId) : null;
+    const caller = await this.contact(enquiry?.callerId, call?.vendorCallId ?? String(item.payload.vendorCallId));
     const msg = buildDesignerEmail({ designerName: designer.name, callerName: caller?.name ?? null, location: enquiry?.input.location ?? null, startsAt: booking.startsAt,
       meetingUrl: cal?.meetingUrl ?? null, phone: caller?.phone ?? null, callerEmail: caller?.email ?? booking.callerEmail ?? null, details: enquiry?.designerNote ?? "", transcript: call?.transcript ?? [], forDesigner: this.d.designerEmailTo && designer.email !== this.d.designerEmailTo ? designer.name : undefined });
     await this.d.email.send({ to, ...msg, idempotencyKey: item.dedupeKey });
+  }
+
+  /** Who the caller is: the callers row when there is a phone number, else the name and email kept on the call (a web call). */
+  private async contact(callerId: string | null | undefined, vendorCallId: string): Promise<{ phone: string | null; name: string | null; email: string | null } | null> {
+    const row = callerId ? await this.d.repo.callerContact(callerId) : null;
+    const call = await this.d.repo.getCall(vendorCallId);
+    if (!row && !call?.contactName && !call?.contactEmail) return null;
+    return { phone: row?.phone ?? null, name: row?.name ?? call?.contactName ?? null, email: row?.email ?? call?.contactEmail ?? null };
   }
 
   /** A qualified enquiry that did not book a consultation: a designer (by rotation) is asked to call the customer back. No booking, no meeting link, and often no phone number (web calls). */
@@ -101,7 +109,7 @@ export class OutboxRunner {
     const to = this.d.designerEmailTo ?? designer.email;
     if (!to) throw new Error(`designer ${designer.name} has no email address`);
     const call = await this.d.repo.getCall(String(item.payload.vendorCallId));
-    const caller = enquiry.callerId ? await this.d.repo.callerContact(enquiry.callerId) : null;
+    const caller = await this.contact(enquiry.callerId, String(item.payload.vendorCallId));
     const msg = buildDesignerEmail({ designerName: designer.name, callerName: caller?.name ?? null, location: enquiry.input.location ?? null, startsAt: null, meetingUrl: null,
       phone: caller?.phone ?? null, callerEmail: caller?.email ?? null, details: enquiry.designerNote ?? call?.summary ?? "", transcript: call?.transcript ?? [],
       forDesigner: this.d.designerEmailTo && designer.email !== this.d.designerEmailTo ? designer.name : undefined });

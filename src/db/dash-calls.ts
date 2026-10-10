@@ -41,7 +41,7 @@ export async function listCalls(db: SqlClient, q: CallsQuery): Promise<{ total: 
   const total = n((await db.query(`select count(*)::int as n ${from} where ${sql}`, p)).rows[0]?.n);
   const lim = Math.min(Math.max(q.limit ?? 50, 1), 500), off = Math.max(q.offset ?? 0, 0);
   const rows = (await db.query(
-    `select c.vaani_call_id as id, c.rang_at, c.ended_at, c.duration_s, cr.name as caller_name, cr.phone_masked, ${LOCALITY} as locality, e.scope, c.outcome::text as outcome, e.fit::text as fit, c.after_hours,
+    `select c.vaani_call_id as id, c.rang_at, c.ended_at, c.duration_s, coalesce(cr.name, c.contact_name) as caller_name, cr.phone_masked, ${LOCALITY} as locality, e.scope, c.outcome::text as outcome, e.fit::text as fit, c.after_hours,
             bk.starts_at as booking_starts_at, bk.status as booking_status, dz.name as designer, hf.status as handoff_status, c.post_call_status
      ${from} where ${sql} order by coalesce(c.rang_at, c.ended_at, c.created_at) desc, c.vaani_call_id desc limit ${lim} offset ${off}`, p)).rows;
   return { total, rows: rows.map((r) => ({ id: String(r.id), rangAt: d(r.rang_at) ?? d(r.ended_at), callerName: s(r.caller_name), phoneMasked: s(r.phone_masked), locality: s(r.locality), scope: s(r.scope), outcome: s(r.outcome), fit: s(r.fit),
@@ -65,7 +65,7 @@ const maskEmail = (e: string | null) => { if (!e) return null; const [u, dom] = 
 
 export async function getCallDetail(db: SqlClient, vendorCallId: string, demo: boolean) {
   const c = (await db.query(
-    `select c.*, cr.name as caller_name, cr.phone_masked, cr.email as caller_email, e.id as e_id, e.fit::text as e_fit, e.reason_codes, e.missing_fields, e.next_action, e.location_raw, e.locality, e.project_type, e.scope, e.bhk, e.carpet_sqft,
+    `select c.*, coalesce(cr.name, c.contact_name) as caller_name, cr.phone_masked, coalesce(cr.email, c.contact_email) as caller_email, e.id as e_id, e.fit::text as e_fit, e.reason_codes, e.missing_fields, e.next_action, e.location_raw, e.locality, e.project_type, e.scope, e.bhk, e.carpet_sqft,
             e.current_state, e.timeline_raw, e.decision_maker, e.owners_attending, e.source_heard, e.language as e_language, e.asked_for_number, e.designer_note, e.referrer, rv.version as rv_version
      from calls c left join callers cr on cr.id = c.caller_id left join enquiries e on e.id = c.enquiry_id left join rule_versions rv on rv.id = e.rule_version_id
      where c.vaani_call_id = $1 and c.is_demo = $2`, [vendorCallId, demo])).rows[0];
@@ -91,7 +91,7 @@ export async function getCallDetail(db: SqlClient, vendorCallId: string, demo: b
       outcome: s(c.outcome), intent: s(c.intent), endedReason: s(c.ended_reason), postCallStatus: String(c.post_call_status), summary: s(c.summary), recordingUrl: s(c.recording_path),
       disclosureOk: (c.disclosure_ok as boolean | null) ?? null, costTotalInr: c.cost_total_inr == null ? null : Number(c.cost_total_inr) },
     transcript: c.transcript == null ? [] : (jsonOf(c.transcript) as { speaker: string; text: string }[]),
-    caller: c.caller_id ? { name: s(c.caller_name), phoneMasked: s(c.phone_masked), emailMasked: maskEmail(s(c.caller_email)) } : null,
+    caller: (c.caller_id || c.contact_name || c.contact_email) ? { name: s(c.caller_name), phoneMasked: s(c.phone_masked), emailMasked: maskEmail(s(c.caller_email)) } : null,
     enquiry: enqId ? { id: enqId, locality: s(c.locality) ?? (s(c.location_raw)?.split(",")[0]?.trim() || null), projectType: s(c.project_type), scope: s(c.scope), bhk: c.bhk == null ? null : Number(c.bhk), carpetSqft: c.carpet_sqft == null ? null : Number(c.carpet_sqft),
       currentState: s(c.current_state), timeline: s(c.timeline_raw), decisionMaker: s(c.decision_maker), ownersAttending: (c.owners_attending as boolean | null) ?? null, sourceHeard: s(c.source_heard), language: s(c.e_language),
       askedForPrice: !!c.asked_for_number, referrer: s(c.referrer), fit: s(c.e_fit), designerNote: s(c.designer_note) } : null,

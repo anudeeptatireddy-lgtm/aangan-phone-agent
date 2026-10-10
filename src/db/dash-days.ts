@@ -18,7 +18,7 @@ export async function callbacksNeeded(db: SqlClient, q: { from: Date; to: Date; 
     where c.is_demo = $3 and coalesce(c.rang_at, c.ended_at, c.created_at) >= $1::timestamptz and coalesce(c.rang_at, c.ended_at, c.created_at) < $2::timestamptz and e.fit = 'fit'`;
   const totals = (await db.query(`select count(*)::int qualified, count(*) filter (where c.outcome = 'booked')::int booked ${base}`, P)).rows[0] as { qualified: number; booked: number };
   const { rows } = await db.query(
-    `select c.vaani_call_id id, coalesce(c.rang_at, c.ended_at, c.created_at) at, cr.name caller, coalesce(e.locality, e.location_raw) place, cr.phone_masked,
+    `select c.vaani_call_id id, coalesce(c.rang_at, c.ended_at, c.created_at) at, coalesce(cr.name, c.contact_name) caller, coalesce(e.locality, e.location_raw) place, cr.phone_masked,
        (select x.reason from escalations x where x.call_id = c.id order by x.created_at limit 1) esc,
        (select o.status from outbox o where o.kind = 'designer_email' and o.payload->>'callback' = 'true' and o.payload->>'vendorCallId' = c.vaani_call_id order by o.created_at desc limit 1) mail
      ${base} and c.outcome in ('review','escalated') and not exists (select 1 from bookings b where b.enquiry_id = e.id and b.status <> 'cancelled')

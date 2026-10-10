@@ -7,7 +7,7 @@ import type {
 
 const blankCall = (id: string, vendorCallId: string): CallRow => ({
   id, vendorCallId, callerId: null, enquiryId: null, parentCallId: null, rangAt: null, answeredAt: null, endedAt: null, durationS: null, afterHours: null, intent: null,
-  outcome: null, endedReason: null, disclosureOk: null, recordingRef: null, recordingExpiresAt: null, transcript: null, summary: null, postCallStatus: "pending",
+  contactName: null, contactEmail: null, outcome: null, endedReason: null, disclosureOk: null, recordingRef: null, recordingExpiresAt: null, transcript: null, summary: null, postCallStatus: "pending",
   processedAt: null, costAiInr: null, costVoiceInr: null, costTotalInr: null,
 });
 

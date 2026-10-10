@@ -21,7 +21,7 @@ const CALL_COLS: Record<string, [string, (v: never) => unknown]> = {
   durationS: ["duration_s", (v) => v], afterHours: ["after_hours", (v) => v], intent: ["intent", (v) => v], outcome: ["outcome", (v) => v], endedReason: ["ended_reason", (v) => v],
   disclosureOk: ["disclosure_ok", (v) => v], recordingRef: ["recording_path", (v) => v],
   recordingExpiresAt: ["recording_expires_at", (v: Date | null) => (v ? iso(v) : null)], transcript: ["transcript", (v) => (v === null ? null : JSON.stringify(v))],
-  summary: ["summary", (v) => v], postCallStatus: ["post_call_status", (v) => v], processedAt: ["processed_at", (v: Date | null) => (v ? iso(v) : null)],
+  summary: ["summary", (v) => v], contactName: ["contact_name", (v) => v], contactEmail: ["contact_email", (v) => v], postCallStatus: ["post_call_status", (v) => v], processedAt: ["processed_at", (v: Date | null) => (v ? iso(v) : null)],
   costAiInr: ["cost_ai_inr", (v) => v], costVoiceInr: ["cost_voice_inr", (v) => v], costTotalInr: ["cost_total_inr", (v) => v],
 };
 const CAST: Record<string, string> = { rang_at: "::timestamptz", answered_at: "::timestamptz", ended_at: "::timestamptz", recording_expires_at: "::timestamptz", processed_at: "::timestamptz", transcript: "::jsonb" };
@@ -31,7 +31,7 @@ const callOf = (r: Record<string, unknown>): CallRow => ({
   parentCallId: (r.parent_call_id as string) ?? null, rangAt: date(r.rang_at), answeredAt: date(r.answered_at), endedAt: date(r.ended_at), durationS: num(r.duration_s),
   afterHours: (r.after_hours as boolean) ?? null, intent: (r.intent as string) ?? null, outcome: (r.outcome as CallRow["outcome"]) ?? null, endedReason: (r.ended_reason as string) ?? null,
   disclosureOk: (r.disclosure_ok as boolean) ?? null, recordingRef: (r.recording_path as string) ?? null, recordingExpiresAt: date(r.recording_expires_at),
-  transcript: r.transcript == null ? null : (jsonOf(r.transcript) as CallRow["transcript"]), summary: (r.summary as string) ?? null,
+  transcript: r.transcript == null ? null : (jsonOf(r.transcript) as CallRow["transcript"]), summary: (r.summary as string) ?? null, contactName: (r.contact_name as string) ?? null, contactEmail: (r.contact_email as string) ?? null,
   postCallStatus: r.post_call_status as CallRow["postCallStatus"], processedAt: date(r.processed_at), costAiInr: num(r.cost_ai_inr), costVoiceInr: num(r.cost_voice_inr), costTotalInr: num(r.cost_total_inr),
 });
 

@@ -181,6 +181,9 @@ describe("end to end with Cal.com (both orders)", () => {
       expect(mails).toHaveLength(1);
       expect(mails[0]!.to).toBe("owner@example.com");
       expect(mails[0]!.text).toContain("Phone: not captured");
+      expect(mails[0]!.text).toContain("Name: Priya");               // kept on the call: a web call has no callers row
+      expect(mails[0]!.text).toContain("Email: priya@example.com");
+      expect((await d3.postcall.getCall("e6"))!.contactName).toBe("Priya");
       expect(mails[0]!.text).toContain("call the customer back");
       expect(mails[0]!.text).not.toContain("Meeting link");
       await d3.outbox.run();
