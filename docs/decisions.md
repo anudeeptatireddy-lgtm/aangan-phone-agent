@@ -104,3 +104,4 @@ Dated, one-line entries for project-level decisions. Rule and wording decisions 
 - `pnpm/action-setup@v4` had no pnpm version: `package.json` now pins `packageManager` (pnpm 12.9.1; the lockfile records it).
 - pnpm 12 refuses esbuild's install script until approved: `pnpm-workspace.yaml` has `allowBuilds: { esbuild: true }` (the `pnpm` key in package.json is no longer read).
 - The CI steps (frozen install, typecheck, test, seed check, build) all pass locally.
+- Vaani's webhook can arrive 15-20 minutes after a call. There is no working call-listing endpoint (call-history fails with "Invalid client_id format" on our key; it takes no client id parameter), so a call can only be caught up by its id: `pnpm catchup <call_id>...` (ids from Vaani -> Conversations -> History) re-delivers it to our own live webhook, which re-fetches it from Vaani. Idempotent.
