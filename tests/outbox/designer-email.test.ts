@@ -18,4 +18,10 @@ describe("the designer's new-project email", () => {
     expect(m.html).not.toContain("<script>"); expect(m.html).toContain("&lt;script&gt;");
   });
   it("a redirected mail names who it was really for", () => { expect(buildDesignerEmail({ ...base, forDesigner: "Meera" }).subject).toBe("[for Meera] New project assigned: Priya · Kothrud"); });
+  it("an enquiry with no consultation booked says so: call the customer back, no meeting link, no invented time", () => {
+    const m = buildDesignerEmail({ ...base, startsAt: null, meetingUrl: null });
+    expect(m.subject).toBe("New enquiry, no consultation booked yet: Priya · Kothrud");
+    for (const part of ["You have a new enquiry", "No consultation is booked yet", "call the customer back"]) expect(m.text, part).toContain(part);
+    expect(m.text).not.toContain("Meeting link"); expect(m.text).not.toContain("IST");
+  });
 });
