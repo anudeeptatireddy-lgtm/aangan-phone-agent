@@ -111,3 +111,6 @@ Dated, one-line entries for project-level decisions. Rule and wording decisions 
 - Dashboard: "Needs a callback" section under the funnel (who, why, phone or placeholder, whether the designer was emailed). "With a designer" keeps its meaning (a booked consultation assigned to a designer); the callback branch is separate and honestly named.
 - `scripts/send-old-designer-emails.ts` re-sent the callback emails for the calls hit by the transcript bug.
 - Web calls have no phone number, so no `callers` row (its phone columns are required). The name and email the caller gave are kept on the call (`calls.contact_name`, `contact_email`, migration 20261010000002) and used by the designer emails, the HubSpot deal and the dashboard.
+
+## 2026-10-10: components map redrawn (`docs/components-map.svg` / `.png`)
+Swimlane map of what is built and live: Vaani voice agent, Cal.com booking (signed webhook), our Vercel + Supabase backend (rules engine, post-call pipeline, call log, HubSpot, dashboard), Resend email (designer project email, callback email, alerts) replacing Telegram, and the people (designers, Nikhil, front desk). Gemini extraction is built but off.

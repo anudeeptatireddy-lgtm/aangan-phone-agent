@@ -1,0 +1,124 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 1000" width="1400" height="1000" font-family="Inter,Helvetica,Arial,sans-serif">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#8a8f98"/></marker></defs>
+<rect width="1400" height="1000" fill="#101214"/>
+<rect x="0" y="0" width="160" height="58" fill="#1b1d20" stroke="#34373b"/><text x="80.0" y="36" fill="#f2f2f2" font-size="19" font-weight="700" text-anchor="middle">Actor</text>
+<rect x="160" y="0" width="207" height="58" fill="#1b1d20" stroke="#34373b"/><text x="263.5" y="36" fill="#f2f2f2" font-size="19" font-weight="700" text-anchor="middle">Trigger</text>
+<rect x="367" y="0" width="207" height="58" fill="#1b1d20" stroke="#34373b"/><text x="470.5" y="36" fill="#f2f2f2" font-size="19" font-weight="700" text-anchor="middle">Input</text>
+<rect x="574" y="0" width="207" height="58" fill="#1b1d20" stroke="#34373b"/><text x="677.5" y="36" fill="#f2f2f2" font-size="19" font-weight="700" text-anchor="middle">Context</text>
+<rect x="781" y="0" width="207" height="58" fill="#1b1d20" stroke="#34373b"/><text x="884.5" y="36" fill="#f2f2f2" font-size="19" font-weight="700" text-anchor="middle">Processing</text>
+<rect x="988" y="0" width="207" height="58" fill="#1b1d20" stroke="#34373b"/><text x="1091.5" y="36" fill="#f2f2f2" font-size="19" font-weight="700" text-anchor="middle">AI</text>
+<rect x="1195" y="0" width="207" height="58" fill="#1b1d20" stroke="#34373b"/><text x="1298.5" y="36" fill="#f2f2f2" font-size="19" font-weight="700" text-anchor="middle">Output</text>
+<rect x="0" y="58" width="160" height="156" fill="#1f2124" stroke="#34373b"/><text x="80.0" y="134.0" fill="#f2f2f2" font-size="19" font-weight="700" text-anchor="middle">Caller</text><text x="80.0" y="156.0" fill="#a2a7ad" font-size="13.5" text-anchor="middle">(user)</text>
+<rect x="160" y="58" width="207" height="156" fill="#1d2b4d" fill-opacity="0.35" stroke="#2a2d31"/>
+<rect x="367" y="58" width="207" height="156" fill="#1d2b4d" fill-opacity="0.35" stroke="#2a2d31"/>
+<rect x="574" y="58" width="207" height="156" fill="#1d2b4d" fill-opacity="0.35" stroke="#2a2d31"/>
+<rect x="781" y="58" width="207" height="156" fill="#1d2b4d" fill-opacity="0.35" stroke="#2a2d31"/>
+<rect x="988" y="58" width="207" height="156" fill="#1d2b4d" fill-opacity="0.35" stroke="#2a2d31"/>
+<rect x="1195" y="58" width="207" height="156" fill="#1d2b4d" fill-opacity="0.35" stroke="#2a2d31"/>
+<rect x="0" y="214" width="160" height="156" fill="#1f2124" stroke="#34373b"/><text x="80.0" y="290.0" fill="#f2f2f2" font-size="19" font-weight="700" text-anchor="middle">Voice agent</text><text x="80.0" y="312.0" fill="#a2a7ad" font-size="13.5" text-anchor="middle">(Vaani)</text>
+<rect x="160" y="214" width="207" height="156" fill="#4a2a1a" fill-opacity="0.35" stroke="#2a2d31"/>
+<rect x="367" y="214" width="207" height="156" fill="#4a2a1a" fill-opacity="0.35" stroke="#2a2d31"/>
+<rect x="574" y="214" width="207" height="156" fill="#4a2a1a" fill-opacity="0.35" stroke="#2a2d31"/>
+<rect x="781" y="214" width="207" height="156" fill="#4a2a1a" fill-opacity="0.35" stroke="#2a2d31"/>
+<rect x="988" y="214" width="207" height="156" fill="#4a2a1a" fill-opacity="0.35" stroke="#2a2d31"/>
+<rect x="1195" y="214" width="207" height="156" fill="#4a2a1a" fill-opacity="0.35" stroke="#2a2d31"/>
+<rect x="0" y="370" width="160" height="156" fill="#1f2124" stroke="#34373b"/><text x="80.0" y="446.0" fill="#f2f2f2" font-size="19" font-weight="700" text-anchor="middle">Booking</text><text x="80.0" y="468.0" fill="#a2a7ad" font-size="13.5" text-anchor="middle">(Cal.com)</text>
+<rect x="160" y="370" width="207" height="156" fill="#143c3a" fill-opacity="0.35" stroke="#2a2d31"/>
+<rect x="367" y="370" width="207" height="156" fill="#143c3a" fill-opacity="0.35" stroke="#2a2d31"/>
+<rect x="574" y="370" width="207" height="156" fill="#143c3a" fill-opacity="0.35" stroke="#2a2d31"/>
+<rect x="781" y="370" width="207" height="156" fill="#143c3a" fill-opacity="0.35" stroke="#2a2d31"/>
+<rect x="988" y="370" width="207" height="156" fill="#143c3a" fill-opacity="0.35" stroke="#2a2d31"/>
+<rect x="1195" y="370" width="207" height="156" fill="#143c3a" fill-opacity="0.35" stroke="#2a2d31"/>
+<rect x="0" y="526" width="160" height="156" fill="#1f2124" stroke="#34373b"/><text x="80.0" y="602.0" fill="#f2f2f2" font-size="19" font-weight="700" text-anchor="middle">System</text><text x="80.0" y="624.0" fill="#a2a7ad" font-size="13.5" text-anchor="middle">(Vercel + Supabase)</text>
+<rect x="160" y="526" width="207" height="156" fill="#1b3a28" fill-opacity="0.35" stroke="#2a2d31"/>
+<rect x="367" y="526" width="207" height="156" fill="#1b3a28" fill-opacity="0.35" stroke="#2a2d31"/>
+<rect x="574" y="526" width="207" height="156" fill="#1b3a28" fill-opacity="0.35" stroke="#2a2d31"/>
+<rect x="781" y="526" width="207" height="156" fill="#1b3a28" fill-opacity="0.35" stroke="#2a2d31"/>
+<rect x="988" y="526" width="207" height="156" fill="#1b3a28" fill-opacity="0.35" stroke="#2a2d31"/>
+<rect x="1195" y="526" width="207" height="156" fill="#1b3a28" fill-opacity="0.35" stroke="#2a2d31"/>
+<rect x="0" y="682" width="160" height="156" fill="#1f2124" stroke="#34373b"/><text x="80.0" y="758.0" fill="#f2f2f2" font-size="19" font-weight="700" text-anchor="middle">Email</text><text x="80.0" y="780.0" fill="#a2a7ad" font-size="13.5" text-anchor="middle">(Resend)</text>
+<rect x="160" y="682" width="207" height="156" fill="#2e2350" fill-opacity="0.35" stroke="#2a2d31"/>
+<rect x="367" y="682" width="207" height="156" fill="#2e2350" fill-opacity="0.35" stroke="#2a2d31"/>
+<rect x="574" y="682" width="207" height="156" fill="#2e2350" fill-opacity="0.35" stroke="#2a2d31"/>
+<rect x="781" y="682" width="207" height="156" fill="#2e2350" fill-opacity="0.35" stroke="#2a2d31"/>
+<rect x="988" y="682" width="207" height="156" fill="#2e2350" fill-opacity="0.35" stroke="#2a2d31"/>
+<rect x="1195" y="682" width="207" height="156" fill="#2e2350" fill-opacity="0.35" stroke="#2a2d31"/>
+<rect x="0" y="838" width="160" height="156" fill="#1f2124" stroke="#34373b"/><text x="80.0" y="914.0" fill="#f2f2f2" font-size="19" font-weight="700" text-anchor="middle">People</text><text x="80.0" y="936.0" fill="#a2a7ad" font-size="13.5" text-anchor="middle">(studio team)</text>
+<rect x="160" y="838" width="207" height="156" fill="#4a1f33" fill-opacity="0.35" stroke="#2a2d31"/>
+<rect x="367" y="838" width="207" height="156" fill="#4a1f33" fill-opacity="0.35" stroke="#2a2d31"/>
+<rect x="574" y="838" width="207" height="156" fill="#4a1f33" fill-opacity="0.35" stroke="#2a2d31"/>
+<rect x="781" y="838" width="207" height="156" fill="#4a1f33" fill-opacity="0.35" stroke="#2a2d31"/>
+<rect x="988" y="838" width="207" height="156" fill="#4a1f33" fill-opacity="0.35" stroke="#2a2d31"/>
+<rect x="1195" y="838" width="207" height="156" fill="#4a1f33" fill-opacity="0.35" stroke="#2a2d31"/>
+<path d="M358 136 L367 136 L367 292 L376 292" fill="none" stroke="#8a8f98" stroke-width="1.6" stroke-dasharray="6 5" marker-end="url(#a)"/>
+<path d="M564 292 L781 292 L781 292 L998 292" fill="none" stroke="#8a8f98" stroke-width="1.6" stroke-dasharray="6 5" marker-end="url(#a)"/>
+<path d="M1186 292 L1195 292 L1195 136 L1204 136" fill="none" stroke="#8a8f98" stroke-width="1.6" stroke-dasharray="6 5" marker-end="url(#a)"/>
+<text x="1201" y="210" fill="#b0b5bb" font-size="13">booking</text>
+<path d="M1092 348 L1092 370 L884 370 L884 392" fill="none" stroke="#8a8f98" stroke-width="1.6" stroke-dasharray="6 5" marker-end="url(#a)"/>
+<text x="994" y="366" fill="#b0b5bb" font-size="13">tool call</text>
+<path d="M978 448 L1092 448 L1092 448 L1204 448" fill="none" stroke="#8a8f98" stroke-width="1.6" stroke-dasharray="6 5" marker-end="url(#a)"/>
+<path d="M1298 504 L1298 526 L884 526 L884 548" fill="none" stroke="#8a8f98" stroke-width="1.6" stroke-dasharray="6 5" marker-end="url(#a)"/>
+<path d="M772 604 L781 604 L781 604 L790 604" fill="none" stroke="#8a8f98" stroke-width="1.6" stroke-dasharray="6 5" marker-end="url(#a)"/>
+<path d="M978 604 L988 604 L988 604 L998 604" fill="none" stroke="#8a8f98" stroke-width="1.6" stroke-dasharray="6 5" marker-end="url(#a)"/>
+<path d="M1186 604 L1195 604 L1195 604 L1204 604" fill="none" stroke="#8a8f98" stroke-width="1.6" stroke-dasharray="6 5" marker-end="url(#a)"/>
+<path d="M884 660 L884 704" fill="none" stroke="#8a8f98" stroke-width="1.6" stroke-dasharray="6 5" marker-end="url(#a)"/>
+<path d="M978 760 L1092 760 L1092 916 L1204 916" fill="none" stroke="#8a8f98" stroke-width="1.6" stroke-dasharray="6 5" marker-end="url(#a)"/>
+<path d="M1186 604 L1195 604 L1195 760 L1204 760" fill="none" stroke="#8a8f98" stroke-width="1.6" stroke-dasharray="6 5" marker-end="url(#a)"/>
+<text x="1201" y="678" fill="#b0b5bb" font-size="13">no booking</text>
+<path d="M1298 660 L1298 860" fill="none" stroke="#8a8f98" stroke-width="1.6" stroke-dasharray="6 5" marker-end="url(#a)"/>
+<rect x="170" y="80" width="188" height="112" rx="12" fill="#15171a" stroke="#7aa2f7" stroke-width="2"/>
+<text x="264" y="108" fill="#fff" font-size="16" font-weight="700" text-anchor="middle">Calls Aangan</text>
+<text x="264" y="132" fill="#d6d9dd" font-size="13.5" text-anchor="middle">browser or phone,</text>
+<text x="264" y="151" fill="#d6d9dd" font-size="13.5" text-anchor="middle">any hour, any day</text>
+<rect x="1204" y="80" width="188" height="112" rx="12" fill="#15171a" stroke="#7aa2f7" stroke-width="2"/>
+<text x="1298" y="108" fill="#fff" font-size="16" font-weight="700" text-anchor="middle">Booked slot</text>
+<text x="1298" y="132" fill="#d6d9dd" font-size="13.5" text-anchor="middle">read back on the call;</text>
+<text x="1298" y="151" fill="#d6d9dd" font-size="13.5" text-anchor="middle">Cal.com email + video link</text>
+<rect x="376" y="236" width="188" height="112" rx="12" fill="#15171a" stroke="#f0925a" stroke-width="2"/>
+<text x="470" y="264" fill="#fff" font-size="16" font-weight="700" text-anchor="middle">Picks up fast</text>
+<text x="470" y="288" fill="#d6d9dd" font-size="13.5" text-anchor="middle">speech-to-text +</text>
+<text x="470" y="307" fill="#d6d9dd" font-size="13.5" text-anchor="middle">opening disclosure</text>
+<rect x="998" y="236" width="188" height="112" rx="12" fill="#15171a" stroke="#f0925a" stroke-width="2"/>
+<text x="1092" y="264" fill="#fff" font-size="16" font-weight="700" text-anchor="middle">Conversation</text>
+<text x="1092" y="288" fill="#d6d9dd" font-size="13.5" text-anchor="middle">fit questions, price reason,</text>
+<text x="1092" y="307" fill="#d6d9dd" font-size="13.5" text-anchor="middle">reads back, books the slot</text>
+<rect x="790" y="392" width="188" height="112" rx="12" fill="#15171a" stroke="#4fd1c5" stroke-width="2"/>
+<text x="884" y="420" fill="#fff" font-size="16" font-weight="700" text-anchor="middle">Cal.com books it</text>
+<text x="884" y="444" fill="#d6d9dd" font-size="13.5" text-anchor="middle">slot + Cal Video link</text>
+<text x="884" y="463" fill="#d6d9dd" font-size="13.5" text-anchor="middle">(event: Aangan consultation)</text>
+<rect x="1204" y="392" width="188" height="112" rx="12" fill="#15171a" stroke="#4fd1c5" stroke-width="2"/>
+<text x="1298" y="420" fill="#fff" font-size="16" font-weight="700" text-anchor="middle">Signed webhook</text>
+<text x="1298" y="444" fill="#d6d9dd" font-size="13.5" text-anchor="middle">booking + meeting link</text>
+<text x="1298" y="463" fill="#d6d9dd" font-size="13.5" text-anchor="middle">sent to our app</text>
+<rect x="584" y="548" width="188" height="112" rx="12" fill="#15171a" stroke="#6fcf8a" stroke-width="2"/>
+<text x="678" y="576" fill="#fff" font-size="16" font-weight="700" text-anchor="middle">Loads context</text>
+<text x="678" y="600" fill="#d6d9dd" font-size="13.5" text-anchor="middle">8 fit rules, price wording,</text>
+<text x="678" y="619" fill="#d6d9dd" font-size="13.5" text-anchor="middle">designers, past calls</text>
+<rect x="790" y="548" width="188" height="112" rx="12" fill="#15171a" stroke="#6fcf8a" stroke-width="2"/>
+<text x="884" y="576" fill="#fff" font-size="16" font-weight="700" text-anchor="middle">Rules engine</text>
+<text x="884" y="600" fill="#d6d9dd" font-size="13.5" text-anchor="middle">plain code: decides fit,</text>
+<text x="884" y="619" fill="#d6d9dd" font-size="13.5" text-anchor="middle">matches the booking, routes</text>
+<rect x="998" y="548" width="188" height="112" rx="12" fill="#15171a" stroke="#6fcf8a" stroke-width="2"/>
+<text x="1092" y="576" fill="#fff" font-size="16" font-weight="700" text-anchor="middle">After hang-up</text>
+<text x="1092" y="600" fill="#d6d9dd" font-size="13.5" text-anchor="middle">Vaani's 23 extracted fields;</text>
+<text x="1092" y="619" fill="#d6d9dd" font-size="13.5" text-anchor="middle">price / disclosure / complaint</text>
+<text x="1092" y="638" fill="#d6d9dd" font-size="13.5" text-anchor="middle">scans (plain code)</text>
+<rect x="1204" y="548" width="188" height="112" rx="12" fill="#15171a" stroke="#6fcf8a" stroke-width="2"/>
+<text x="1298" y="576" fill="#fff" font-size="16" font-weight="700" text-anchor="middle">Call log</text>
+<text x="1298" y="600" fill="#d6d9dd" font-size="13.5" text-anchor="middle">Supabase row, HubSpot deal,</text>
+<text x="1298" y="619" fill="#d6d9dd" font-size="13.5" text-anchor="middle">live dashboard</text>
+<rect x="790" y="704" width="188" height="112" rx="12" fill="#15171a" stroke="#b79cf0" stroke-width="2"/>
+<text x="884" y="732" fill="#fff" font-size="16" font-weight="700" text-anchor="middle">Designer email</text>
+<text x="884" y="756" fill="#d6d9dd" font-size="13.5" text-anchor="middle">new project + meeting link</text>
+<text x="884" y="775" fill="#d6d9dd" font-size="13.5" text-anchor="middle">+ transcript of the call</text>
+<rect x="1204" y="704" width="188" height="112" rx="12" fill="#15171a" stroke="#b79cf0" stroke-width="2"/>
+<text x="1298" y="732" fill="#fff" font-size="16" font-weight="700" text-anchor="middle">Callback email</text>
+<text x="1298" y="756" fill="#d6d9dd" font-size="13.5" text-anchor="middle">qualified, not booked:</text>
+<text x="1298" y="775" fill="#d6d9dd" font-size="13.5" text-anchor="middle">call the customer back</text>
+<rect x="1204" y="860" width="188" height="112" rx="12" fill="#15171a" stroke="#ee7da0" stroke-width="2"/>
+<text x="1298" y="888" fill="#fff" font-size="16" font-weight="700" text-anchor="middle">Handoffs</text>
+<text x="1298" y="912" fill="#d6d9dd" font-size="13.5" text-anchor="middle">Designer: gets the email</text>
+<text x="1298" y="931" fill="#d6d9dd" font-size="13.5" text-anchor="middle">Nikhil: dashboard, alerts</text>
+<text x="1298" y="950" fill="#d6d9dd" font-size="13.5" text-anchor="middle">Desk: unclear cases</text>
+<text x="160" y="986" fill="#8f949b" font-size="13">Live: aangan-phone-agent-eight.vercel.app. Gemini extraction is built but off (Vaani extracts the fields). Telegram is replaced by Resend email. Nothing here states a price.</text>
+</svg>
