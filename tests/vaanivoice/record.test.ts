@@ -54,3 +54,26 @@ describe("parseVaaniVoiceEvent", () => {
     expect(parseVaaniVoiceEvent({ foo: 1 })).toBeNull();
   });
 });
+
+describe("without call history, the call's real start and end come from the transcript's own [hh:mm:ss] stamps (UTC)", () => {
+  const details = (t: string) => ({ transcription: t, entity: {}, summary: "" });
+  const t = "[09:48:43] AGENT: Namaste.\n[09:48:51] USER: Hi.\n[09:52:05] AGENT: Goodbye.";
+  it("start, end and duration are the first and last stamp, on the day the webhook arrived", () => {
+    const r = buildCallRecord({ callId: "x", details: details(t), now: new Date("2026-10-10T09:56:00Z"), ratePerMinInr: 5.31 });
+    expect(r.rangAt).toBe("2026-10-10T09:48:43.000Z");
+    expect(r.endedAt).toBe("2026-10-10T09:52:05.000Z");
+    expect(r.durationS).toBe(202);
+    expect(r.voiceCostInr).toBeCloseTo(17.88, 1);
+  });
+  it("a call that ran past midnight UTC is placed on the previous day", () => {
+    const r = buildCallRecord({ callId: "x", details: details("[23:58:00] AGENT: Hi.\n[23:59:40] USER: Hi."), now: new Date("2026-10-11T00:01:00Z") });
+    expect(r.endedAt).toBe("2026-10-10T23:59:40.000Z");
+  });
+  it("real history always wins over the stamps, and a transcript without stamps keeps the old behaviour", () => {
+    const h = { Start_time: "2026-10-10T09:00:00Z", End_time: "2026-10-10T09:05:00Z" } as never;
+    expect(buildCallRecord({ callId: "x", details: details(t), history: h, now: new Date("2026-10-10T09:56:00Z") }).rangAt).toBe("2026-10-10T09:00:00.000Z");
+    const plain = buildCallRecord({ callId: "x", details: details("AGENT: Hi.\n\nUSER: Hello."), now: new Date("2026-10-10T09:56:00Z") });
+    expect(plain.endedAt).toBe("2026-10-10T09:56:00.000Z"); expect(plain.rangAt).toBeUndefined();
+  });
+});
+

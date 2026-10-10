@@ -22,3 +22,17 @@ export function parseTranscription(raw: unknown): CallTurn[] {
   }
   return turns.filter((t) => t.text);
 }
+
+/**
+ * The first and last "[hh:mm:ss]" stamps of a real transcript, as UTC instants on the day of `ref` (the webhook's arrival). Used only when Vaani's call history,
+ * which carries the real times, is unavailable. A stamp later than `ref` belongs to the previous day (a call that ran past midnight).
+ */
+export function transcriptSpan(raw: unknown, ref: Date): { start: Date; end: Date } | null {
+  if (typeof raw !== "string") return null;
+  const at = (hh: string, mm: string, ss: string) => {
+    const d = new Date(Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth(), ref.getUTCDate(), Number(hh), Number(mm), Number(ss)));
+    return d.getTime() > ref.getTime() + 60_000 ? new Date(d.getTime() - 86_400_000) : d;
+  };
+  const stamps = [...raw.matchAll(/^\s*\[(\d\d):(\d\d):(\d\d)\]/gm)].map((m) => at(m[1]!, m[2]!, m[3]!));
+  return stamps.length ? { start: stamps[0]!, end: stamps[stamps.length - 1]! } : null;
+}

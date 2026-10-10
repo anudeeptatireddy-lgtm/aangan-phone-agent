@@ -1,7 +1,7 @@
 import type { CallRecordInput } from "@/core/postcall/types";
 import { bookingClaim } from "./entities";
 import type { VaaniCallDetails, VaaniHistoryRow } from "./client";
-import { parseTranscription } from "./transcript";
+import { parseTranscription, transcriptSpan } from "./transcript";
 
 const E164 = /^\+\d{8,15}$/;
 
@@ -9,8 +9,10 @@ export function buildCallRecord(i: { callId: string; details: VaaniCallDetails; 
   const turns = parseTranscription(i.details.transcription);
   const h = i.history ?? undefined;
   const iso = (v?: string) => { const d = v ? new Date(v) : null; return d && !Number.isNaN(d.getTime()) ? d.toISOString() : undefined; };
-  const started = iso(h?.Start_time);
-  const ended = iso(h?.End_time) ?? iso(i.eventTimestamp) ?? (i.now ?? new Date()).toISOString();
+  const ref = iso(i.eventTimestamp) ?? (i.now ?? new Date()).toISOString();
+  const span = h ? null : transcriptSpan(i.details.transcription, new Date(ref)); // no history: the transcript's own stamps give the real times
+  const started = iso(h?.Start_time) ?? span?.start.toISOString();
+  const ended = iso(h?.End_time) ?? span?.end.toISOString() ?? ref;
   const durationS = typeof h?.duration_ms === "number" ? Math.round(h.duration_ms / 1000)
     : started ? Math.max(0, Math.round((Date.parse(ended) - Date.parse(started)) / 1000)) : undefined;
   const inbound = /^(in|incoming)/i.test(h?.direction ?? "") || /^inbound$/i.test(h?.call_type ?? "");
