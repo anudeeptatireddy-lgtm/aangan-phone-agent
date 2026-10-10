@@ -196,3 +196,16 @@ body:has(> .dash) { margin: 0; }
 .dash .tbl tbody th { font-weight: 500; font-size: 15px; color: var(--ink); text-align: left; padding: 10px 12px 10px 0; border-bottom: 1px solid var(--rule); border-top: 0; white-space: normal; }
 .dash .tbl tbody tr:last-child th { border-bottom: 0; }
 .dash .tbl .after-bar { padding-left: 32px; }
+
+/* calendar: hover for the day's calls and conversions, click for the day */
+.dash .cal-wrap { margin: 36px 0; } .dash .cal-wrap h2 { margin-bottom: 4px; }
+.dash .cal-months { display: flex; flex-wrap: wrap; gap: 28px; margin-top: 14px; }
+.dash .cal { min-width: 300px; flex: 1 1 320px; max-width: 460px; } .dash .cal h3 { margin: 0 0 8px; font-size: 16px; }
+.dash .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 4px; }
+.dash .cal-head span { font-size: 12px; color: var(--muted); text-align: center; }
+.dash .cal-day { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 54px; border: 1px solid var(--rule); border-radius: 6px; text-decoration: none; color: var(--ink); font-size: 13px; line-height: 1.15; }
+.dash .cal-day b { font-weight: 500; color: var(--muted); font-size: 11px; } .dash .cal-day i { font-style: normal; font-size: 17px; } .dash .cal-day u { text-decoration: none; font-size: 11px; color: var(--muted); min-height: 12px; }
+.dash .cal-day.pad { border-color: transparent; } .dash .cal-day.out { opacity: .38; }
+.dash a.cal-day:hover, .dash a.cal-day:focus-visible { border-color: var(--accent); z-index: 2; }
+.dash .cal-day .tip { display: none; position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); white-space: nowrap; background: var(--ink); color: var(--ground); padding: 6px 10px; border-radius: 6px; font-size: 12.5px; z-index: 5; pointer-events: none; }
+.dash .cal-day:hover .tip, .dash .cal-day:focus-visible .tip { display: block; }
