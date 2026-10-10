@@ -7,10 +7,12 @@ const MAIL = { sent: "Designer emailed", queued: "Email queued", failed: "Email 
 export function Callbacks({ rows, demo }: { rows: CallbackRow[]; demo: boolean }) {
   const qualified = rows[0]?.qualified ?? 0, booked = rows[0]?.booked ?? 0;
   if (!rows.length) return null;
+  const sent = rows.filter((r) => r.emailed === "sent").length;
+  const mailed = sent === rows.length ? "A designer was emailed to call each of them back." : sent === 0 ? "No designer has been emailed about them yet." : `A designer was emailed about ${sent} of them.`;
   return (
     <section className="cal-wrap" aria-label="Callbacks to make">
       <h2>Needs a callback</h2>
-      <p className="muted">{qualified} callers fit what the studio takes on: {booked} booked a consultation, {rows.length} did not. A designer was emailed to call each of them back. Web calls carry no phone number, so the number has to be asked for.</p>
+      <p className="muted">{qualified} callers fit what the studio takes on: {booked} booked a consultation, {rows.length} did not. {mailed} Web calls carry no phone number, so the number has to be asked for.</p>
       <ul className="callbacks">
         {rows.map((r) => (
           <li key={r.callId}>

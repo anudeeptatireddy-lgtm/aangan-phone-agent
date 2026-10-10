@@ -29,7 +29,12 @@ try {
     const msg = buildDesignerEmail({ designerName: designer, callerName: c.caller_name, location: c.place, startsAt: booked ? new Date(c.starts_at) : null, meetingUrl: c.meeting_url, phone: c.phone_masked, callerEmail: c.caller_email,
       details: c.designer_note ?? c.summary ?? "", transcript: c.transcript ?? [], forDesigner: designer });
     console.log(`${dry ? "would send" : "sending"}: ${msg.subject}`);
-    if (!dry) await mail.send({ to: DESIGNER_EMAIL_TO, ...msg, idempotencyKey: `designer_email:backfill2:${c.id}` });
+    if (!dry) {
+      await mail.send({ to: DESIGNER_EMAIL_TO, ...msg, idempotencyKey: `designer_email:backfill2:${c.id}` });   // Resend de-duplicates the same key for 24 h: re-running never sends twice
+      // record it where the dashboard looks, as a delivered callback email, so the "Needs a callback" list is truthful
+      await db.query("insert into outbox(kind, payload, dedupe_key, status, attempts) values ('designer_email', $1::jsonb, $2, 'processed', 1) on conflict (dedupe_key) do nothing",
+        [JSON.stringify({ callback: true, vendorCallId: c.id }), `designer_email:callback:${c.id}`]);
+    }
   }
   console.log(`${calls.length} email(s) ${dry ? "prepared" : "sent"} to ${DESIGNER_EMAIL_TO.replace(/^(.).*(@.*)$/, "$1…$2")}`);
 } finally { await db.end(); }
