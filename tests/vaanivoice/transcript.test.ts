@@ -27,3 +27,17 @@ describe("parseTranscription (Vaani call_details.transcription)", () => {
       { speaker: "agent", text: "Hi" }, { speaker: "caller", text: "Hello" }]);
   });
 });
+
+describe("the real Vaani transcript format (seen on the first live call): a [hh:mm:ss] stamp on every line, one turn per line", () => {
+  const raw = "[09:48:43] AGENT: Namaste, Aangan Studio. I am Aangan's virtual assistant, and this call is recorded so our designers have your details. How can I help?\n[09:48:51] USER: Hi. I have a three BHK in about 1,400 square feet.\n[09:48:53] USER: The design, and the execution.\n[09:48:59] AGENT: Where in Pune is your home located?\n[09:49:27] AGENT: \n[09:49:30] USER: Kutrad.";
+  it("parses every turn with the right speaker and drops the stamps and empty turns", () => {
+    const t = parseTranscription(raw);
+    expect(t.map((x) => x.speaker)).toEqual(["agent", "caller", "caller", "agent", "caller"]);
+    expect(t[0]!.text).toMatch(/^Namaste, Aangan Studio\./);
+    expect(t[1]!.text).toBe("Hi. I have a three BHK in about 1,400 square feet.");
+    expect(t.some((x) => /\[\d\d:/.test(x.text))).toBe(false);
+  });
+  it("a continuation line without a speaker joins the turn before it", () => {
+    expect(parseTranscription("[09:00:00] USER: first line\nsecond line\n[09:00:05] AGENT: ok").map((x) => x.text)).toEqual(["first line second line", "ok"]);
+  });
+});

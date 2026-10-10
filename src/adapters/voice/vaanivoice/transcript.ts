@@ -1,7 +1,7 @@
 import type { CallTurn } from "@/core/postcall/types";
 
 // call_details.transcription is a string of "AGENT: ...\n\n USER: ..." blocks (docs.vaanivoice.ai, call-details example).
-const LABEL = /^\s*(agent|user|caller)\s*:\s*/i;
+const LABEL = /^\s*(?:\[[^\]]*\]\s*)?(agent|user|caller)\s*:[ \t]*/i;
 
 export function parseTranscription(raw: unknown): CallTurn[] {
   if (Array.isArray(raw)) {
@@ -13,11 +13,12 @@ export function parseTranscription(raw: unknown): CallTurn[] {
     });
   }
   if (typeof raw !== "string") return [];
+  // Real calls (seen live): one turn per line, each stamped "[09:48:51] USER: ...". The docs example has blank-line separated "AGENT: ..." blocks. Both read the same way here.
   const turns: CallTurn[] = [];
-  for (const block of raw.split(/\n\s*\n/)) {
-    const m = LABEL.exec(block);
-    if (m) turns.push({ speaker: m[1]!.toLowerCase() === "agent" ? "agent" : "caller", text: block.slice(m[0].length).replace(/\s*\n\s*/g, " ").trim() });
-    else if (turns.length) turns[turns.length - 1]!.text += ` ${block.replace(/\s*\n\s*/g, " ").trim()}`; // a paragraph break inside a turn
+  for (const line of raw.split(/\r?\n/)) {
+    const m = LABEL.exec(line);
+    if (m) turns.push({ speaker: m[1]!.toLowerCase() === "agent" ? "agent" : "caller", text: line.slice(m[0].length).trim() });
+    else if (line.trim() && turns.length) turns[turns.length - 1]!.text += ` ${line.trim()}`; // a line without a speaker continues the turn before it
   }
   return turns.filter((t) => t.text);
 }
