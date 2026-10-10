@@ -4,6 +4,7 @@ import { log } from "@/lib/log";
 import { FakeCalendar } from "@/adapters/calendar/fake";
 import { FakeNotifier } from "@/adapters/notify/fake";
 import { TelegramNotifier } from "@/adapters/notify/telegram";
+import { EmailNotifier } from "@/adapters/notify/email";
 import { HandoffService } from "@/core/handoff/service";
 import type { CrmPort, EmailPort, NotifierPort } from "@/core/ports";
 import { FakeCrm } from "@/adapters/crm/fake";
@@ -127,9 +128,14 @@ export function makeDeps(o: MakeDepsOptions = {}): Deps {
   if (env.GOOGLE_SERVICE_ACCOUNT_JSON) calendar = new GoogleCalendar({ serviceAccount: parseServiceAccount(env.GOOGLE_SERVICE_ACCOUNT_JSON), impersonate: env.GOOGLE_IMPERSONATE_USER });
   else if (env.NODE_ENV !== "production") calendar = fakeCalendar = new FakeCalendar();
   else { const no = () => Promise.reject(new Error("Google Calendar is not configured (GOOGLE_SERVICE_ACCOUNT_JSON)")); calendar = { freeBusy: no, createEvent: no, deleteEvent: no }; }
+  let email: EmailPort, fakeEmail: FakeEmail | undefined;
+    if (env.RESEND_API_KEY && env.RESEND_FROM) email = new ResendEmail({ apiKey: env.RESEND_API_KEY, from: env.RESEND_FROM, replyTo: env.RESEND_REPLY_TO });
+    else if (env.NODE_ENV !== "production") email = fakeEmail = new FakeEmail();
+    else email = { send: unconfigured("Resend (RESEND_API_KEY / RESEND_FROM)") };
   // Telegram: the real bot only when a token is configured; a recording fake otherwise (in production without a token every send fails loudly, so items wait in the outbox and the sweep reports them).
   let notifier: NotifierPort, fakeNotifier: FakeNotifier | undefined;
   if (env.TELEGRAM_BOT_TOKEN) notifier = new TelegramNotifier({ token: env.TELEGRAM_BOT_TOKEN });
+  else if (env.RESEND_API_KEY && env.RESEND_FROM) notifier = new EmailNotifier({ email, alertTo: env.ALERT_EMAIL ?? env.RESEND_REPLY_TO ?? env.RESEND_FROM }); // Resend replaces Telegram
   else if (env.NODE_ENV !== "production") notifier = fakeNotifier = new FakeNotifier();
   else notifier = new UnconfiguredNotifier();
   const calendarInUse = googleCalendarInUse(env);
@@ -169,12 +175,8 @@ export function makeDeps(o: MakeDepsOptions = {}): Deps {
   if (env.HUBSPOT_ACCESS_TOKEN && env.HUBSPOT_PIPELINE_ID && env.HUBSPOT_DEAL_STAGE_ID) crm = new HubSpotCrm({ token: env.HUBSPOT_ACCESS_TOKEN, pipelineId: env.HUBSPOT_PIPELINE_ID, dealStageId: env.HUBSPOT_DEAL_STAGE_ID });
   else if (env.NODE_ENV !== "production") crm = fakeCrm = new FakeCrm();
   else { const no = unconfigured("HubSpot (HUBSPOT_ACCESS_TOKEN / HUBSPOT_PIPELINE_ID / HUBSPOT_DEAL_STAGE_ID)"); crm = { createDealForEnquiry: no, readDeals: no, dealStages: no, dealPipelines: no }; }
-  let email: EmailPort, fakeEmail: FakeEmail | undefined;
-  if (env.RESEND_API_KEY && env.RESEND_FROM) email = new ResendEmail({ apiKey: env.RESEND_API_KEY, from: env.RESEND_FROM, replyTo: env.RESEND_REPLY_TO });
-  else if (env.NODE_ENV !== "production") email = fakeEmail = new FakeEmail();
-  else email = { send: unconfigured("Resend (RESEND_API_KEY / RESEND_FROM)") };
   const crmSync = new CrmStageSync({ repo: postcall, bookings: bookingRepo, crm, now, stageMap: parseStageMap(env.HUBSPOT_STAGE_MAP), startStageId: env.HUBSPOT_DEAL_STAGE_ID, pipelineId: env.HUBSPOT_PIPELINE_ID });
-  const outbox = new OutboxRunner({ repo: postcall, bookings: bookingRepo, notifier, crm, email, now });
+  const outbox = new OutboxRunner({ repo: postcall, bookings: bookingRepo, notifier, crm, email, now, cal: calStore, designerEmailTo: env.DESIGNER_EMAIL_TO });
   const alerts = new AlertDrainer({ repo: postcall, notifier, designLeadChat: async () => (await bookingRepo.listActiveDesigners()).find((x) => x.isDesignLead && x.telegramChatId != null)?.telegramChatId ?? null,
     ownerChatId: env.OWNER_TELEGRAM_CHAT_ID ? Number(env.OWNER_TELEGRAM_CHAT_ID) : undefined, nikhilChatId: env.NIKHIL_TELEGRAM_CHAT_ID ? Number(env.NIKHIL_TELEGRAM_CHAT_ID) : undefined });
   return { env, repo: new InMemoryRepo(env.PHONE_HASH_PEPPER), now, hours, designerNames: o.designerNames ?? [],

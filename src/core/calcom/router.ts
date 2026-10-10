@@ -148,6 +148,7 @@ export class CallRouter {
     await this.d.repo.enqueue("hubspot_deal", { enquiryId: row.id, vendorCallId: id, bookingId: r.bookingId }, `hubspot_deal:${row.id}`);
     if (email) await this.d.repo.enqueue("confirmation_email", { bookingId: r.bookingId, enquiryId: row.id, email, name: contact?.name ?? null, startsAt: b.startsAt.toISOString() }, `confirmation_email:${r.bookingId}`);
     await this.d.repo.enqueue("designer_note_update", { enquiryId: row.id, bookingId: r.bookingId }, `designer_note_update:${r.bookingId}`);
+    await this.d.repo.enqueue("designer_email", { bookingId: r.bookingId, enquiryId: row.id, vendorCallId: id, bookingUid: b.uid, designerId: r.designerId }, `designer_email:${r.bookingId}:${r.designerId}`);
     return "booked";
   }
 

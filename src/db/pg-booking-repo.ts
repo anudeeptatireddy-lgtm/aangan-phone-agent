@@ -24,11 +24,11 @@ const handoffOf = (r: Record<string, unknown>): HandoffRecord => ({
   reassignedToHandoffId: (r.reassigned_to_handoff_id as string | null) ?? null, designLeadAlertedAt: date(r.design_lead_alerted_at),
 });
 
-const DESIGNER_COLS = "select id, name, areas, project_types, calendar_id, telegram_chat_id, is_principal, is_design_lead, active, last_assigned_at, max_per_day from designers";
+const DESIGNER_COLS = "select id, name, areas, project_types, calendar_id, telegram_chat_id, is_principal, is_design_lead, active, last_assigned_at, max_per_day, email from designers";
 const designerOf = (r: Record<string, unknown>): Designer => ({
   id: r.id as string, name: r.name as string, areas: (r.areas as string[]) ?? [], projectTypes: (r.project_types as string[]) ?? [],
   calendarId: (r.calendar_id as string | null) ?? null, telegramChatId: num(r.telegram_chat_id), isPrincipal: r.is_principal as boolean,
-  isDesignLead: r.is_design_lead as boolean, active: r.active as boolean, lastAssignedAt: date(r.last_assigned_at), maxPerDay: num(r.max_per_day),
+  isDesignLead: r.is_design_lead as boolean, active: r.active as boolean, lastAssignedAt: date(r.last_assigned_at), maxPerDay: num(r.max_per_day), email: (r.email as string | null) ?? null,
 });
 
 const isConflict = (e: unknown) => {

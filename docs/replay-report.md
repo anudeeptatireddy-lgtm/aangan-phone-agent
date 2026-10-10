@@ -1,6 +1,6 @@
 # Replay report
 
-Run: 2026-10-09. **ALL PASS**: 30/30 calls, price gate caught 8/8 planted violations, price numbers said by the scripted agent: 0.
+Run: 2026-10-10. **ALL PASS**: 30/30 calls, price gate caught 8/8 planted violations, price numbers said by the scripted agent: 0.
 
 Scope: our code (rules, router, booking, escalation, scans) is tested for real. The agent's own lines are a script of the approved wording, so what Vaani's live model says is NOT proven here; real calls get the same price and disclosure scans after the call (docs/replay-harness.md).
 

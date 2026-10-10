@@ -27,6 +27,9 @@ const Env = z.object({
   RESEND_API_KEY: z.string().optional(),
   RESEND_FROM: z.string().optional(),
   RESEND_REPLY_TO: z.string().optional(),
+  // Resend replaces Telegram: alerts go to ALERT_EMAIL; DESIGNER_EMAIL_TO redirects every designer project email to one address (the Resend test sender only reaches the account owner).
+  ALERT_EMAIL: z.string().optional(),
+  DESIGNER_EMAIL_TO: z.string().optional(),
   // Google Calendar: service-account key JSON (raw JSON or base64 of it). Share each designer's calendar with the service account's email.
   // GOOGLE_IMPERSONATE_USER enables domain-wide delegation, which Google requires before a service account may invite attendees.
   GOOGLE_SERVICE_ACCOUNT_JSON: z.string().optional(),

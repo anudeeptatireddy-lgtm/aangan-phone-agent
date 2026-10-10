@@ -5,7 +5,7 @@ import type { CostRow } from "./costs";
 export type Outcome = "booked" | "not_fit" | "review" | "escalated" | "closed_other" | "dropped" | "missed";
 export type FlagKind = "price_mention" | "missed_complaint" | "rule_disagreement" | "missing_disclosure" | "extraction_failed" | "other";
 export type PostCallStatus = "pending" | "processed" | "extraction_failed";
-export type OutboxKind = "hubspot_deal" | "confirmation_email" | "owner_alert" | "nikhil_alert" | "designer_note_update" | "vaani_call" | "call_routing" | "design_lead_alert";
+export type OutboxKind = "hubspot_deal" | "confirmation_email" | "owner_alert" | "nikhil_alert" | "designer_note_update" | "vaani_call" | "call_routing" | "design_lead_alert" | "designer_email";
 
 export interface CallRow {
   id: string;

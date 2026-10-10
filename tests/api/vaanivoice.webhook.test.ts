@@ -141,7 +141,7 @@ describe("failures are loud, never silent", () => {
 
 describe("end to end with Cal.com (both orders)", () => {
   const calSend = (uid: string) => {
-    const raw = JSON.stringify({ triggerEvent: "BOOKING_CREATED", createdAt: "2026-10-07T06:15:00.000Z", payload: { uid, startTime: "2026-10-08T05:30:00Z", endTime: "2026-10-08T06:30:00Z", eventTypeId: 7, status: "ACCEPTED",
+    const raw = JSON.stringify({ triggerEvent: "BOOKING_CREATED", createdAt: "2026-10-07T06:15:00.000Z", payload: { uid, startTime: "2026-10-08T05:30:00Z", endTime: "2026-10-08T06:30:00Z", eventTypeId: 7, status: "ACCEPTED", videoCallData: { url: "https://app.cal.com/video/room-" + uid },
       attendees: [{ email: "priya@example.com", name: "Priya", phoneNumber: "+919000000021" }] } });
     return handleCalcomWebhook(new Request("http://localhost/api/calcom/webhook", { method: "POST", headers: { "x-cal-signature-256": createHmac("sha256", CAL).update(raw).digest("hex") }, body: raw }), d);
   };
@@ -152,6 +152,22 @@ describe("end to end with Cal.com (both orders)", () => {
     await calSend("bk-e1");
     expect((await d.postcall.getCall("e1"))!.outcome).toBe("booked");
     expect(d.fakeNotifier!.handoffs).toHaveLength(1);
+  });
+  it("the assigned designer is emailed the project: details, the Cal.com meeting link and the call transcript (Resend replaces Telegram)", async () => {
+    const d2 = makeDeps({ env: { ...ENV, DESIGNER_EMAIL_TO: "owner@example.com" }, now: () => NOW });
+    const dd = d; d = d2;
+    try {
+      seed("e5"); await send(post("e5"), SECRET, d2); await calSend("bk-e5");
+      await d2.outbox.run();
+      const mails = d2.fakeEmail!.sent.filter((m) => m.subject.includes("New project assigned"));
+      expect(mails).toHaveLength(1);
+      expect(mails[0]!.to).toBe("owner@example.com");
+      expect(mails[0]!.text).toContain("https://app.cal.com/video/room-bk-e5");
+      expect(mails[0]!.text).toContain("Caller:");
+      expect(mails[0]!.subject).toMatch(/^\[for TEST Designer/);
+      await d2.outbox.run();                                         // running again sends nothing more
+      expect(d2.fakeEmail!.sent.filter((m) => m.subject.includes("New project assigned"))).toHaveLength(1);
+    } finally { d = dd; }
   });
   it("booking first, call later: matched as soon as the call is processed", async () => {
     await calSend("bk-e2");

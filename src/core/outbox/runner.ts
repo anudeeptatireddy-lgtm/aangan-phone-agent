@@ -4,11 +4,14 @@ import type { BookingRepo } from "../booking/repo";
 import type { CrmPort, EmailPort, NotifierPort } from "../ports";
 import type { OutboxKind, OutboxRow, PostCallRepo } from "../postcall/repo";
 import { buildConfirmationEmail } from "./confirmation-email";
+import { buildDesignerEmail } from "./designer-email";
+import type { CalBookingStore } from "../calcom/types";
 
-const KINDS: OutboxKind[] = ["hubspot_deal", "confirmation_email", "designer_note_update"];
+const KINDS: OutboxKind[] = ["hubspot_deal", "confirmation_email", "designer_note_update", "designer_email"];
 const MAX_ATTEMPTS = 5;
 
-export interface OutboxDeps { repo: PostCallRepo; bookings: BookingRepo; notifier: NotifierPort; crm: CrmPort; email: EmailPort; now: () => Date }
+export interface OutboxDeps { repo: PostCallRepo; bookings: BookingRepo; notifier: NotifierPort; crm: CrmPort; email: EmailPort; now: () => Date;
+  cal?: CalBookingStore; /** every designer email goes here instead (the Resend test sender only delivers to the account owner; also the demo) */ designerEmailTo?: string }
 
 /** Delivers the non-alert outbox items. Alerts are the AlertDrainer's. A failure keeps the item pending; the 5th failure marks it failed and alerts the owner. */
 export class OutboxRunner {
@@ -38,6 +41,7 @@ export class OutboxRunner {
       case "hubspot_deal": return this.hubspotDeal(item);
       case "confirmation_email": return this.confirmationEmail(item);
       case "designer_note_update": return this.designerNoteUpdate(item);
+      case "designer_email": return this.designerEmail(item);
       default: return Promise.resolve();
     }
   }
@@ -65,6 +69,23 @@ export class OutboxRunner {
     if (!booking || (booking.status !== "confirmed" && booking.status !== "held")) return; // cancelled since: nothing to confirm
     const msg = buildConfirmationEmail({ name: (item.payload.name as string | null) ?? null, startsAt: booking.startsAt });
     await this.d.email.send({ to: String(item.payload.email), ...msg, idempotencyKey: item.dedupeKey });
+  }
+
+  /** "You have a new project": the details, the meeting link and the transcript of the call, emailed to the assigned designer. */
+  private async designerEmail(item: OutboxRow) {
+    const booking = await this.d.bookings.getBooking(String(item.payload.bookingId));
+    if (!booking || (booking.status !== "confirmed" && booking.status !== "held")) return; // cancelled since
+    const designer = await this.d.bookings.getDesigner(String(item.payload.designerId ?? booking.designerId));
+    if (!designer) throw new Error("designer not found");
+    const to = this.d.designerEmailTo ?? designer.email;
+    if (!to) throw new Error(`designer ${designer.name} has no email address`);
+    const enquiry = await this.d.repo.getEnquiry(String(item.payload.enquiryId));
+    const call = await this.d.repo.getCall(String(item.payload.vendorCallId));
+    const cal = item.payload.bookingUid && this.d.cal ? await this.d.cal.get(String(item.payload.bookingUid)) : null;
+    const caller = enquiry?.callerId ? await this.d.repo.callerContact(enquiry.callerId) : null;
+    const msg = buildDesignerEmail({ designerName: designer.name, callerName: caller?.name ?? null, location: enquiry?.input.location ?? null, startsAt: booking.startsAt,
+      meetingUrl: cal?.meetingUrl ?? null, details: enquiry?.designerNote ?? "", transcript: call?.transcript ?? [], forDesigner: this.d.designerEmailTo && designer.email !== this.d.designerEmailTo ? designer.name : undefined });
+    await this.d.email.send({ to, ...msg, idempotencyKey: item.dedupeKey });
   }
 
   private async designerNoteUpdate(item: OutboxRow) {

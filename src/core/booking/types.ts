@@ -7,6 +7,7 @@ export interface Designer {
   projectTypes: string[];     // 'home' | 'office'
   calendarId: string | null;  // Google Calendar id; without one we cannot check free/busy
   telegramChatId: number | null;
+  email?: string | null;      // where the project email goes (Resend replaces Telegram)
   isPrincipal: boolean;
   isDesignLead: boolean;
   active: boolean;

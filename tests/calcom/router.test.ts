@@ -23,7 +23,7 @@ describe("order A: the booking is already in when post-call processing finishes"
     expect(w.notifier.handoffs).toHaveLength(1);
     const b = (await w.bookings.findByIdempotencyKey("cal:bk-1"))!;
     expect(b).toMatchObject({ status: "confirmed", calendarEventId: "bk-1", enquiryId: r.enquiryId });
-    expect(outboxKinds(w)).toEqual(["confirmation_email", "designer_note_update", "hubspot_deal"]);
+    expect(outboxKinds(w)).toEqual(["confirmation_email", "designer_email", "designer_note_update", "hubspot_deal"]);
     const enq = (await w.repo.getEnquiry(r.enquiryId!))!;
     expect(enq.designerNote).toContain("Summary: 3BHK full redesign in Kothrud");
     expect(enq.designerNote).toContain("Booked: Thursday 8 October, 11:00 am");
@@ -44,7 +44,7 @@ describe("order B: the Cal.com webhook arrives after the post-call pipeline has 
     await w.router.routePending();
     expect((await final(w, "c2")).outcome).toBe("booked");
     expect(w.notifier.handoffs).toHaveLength(1);
-    expect(outboxKinds(w)).toEqual(["confirmation_email", "designer_note_update", "hubspot_deal"]);
+    expect(outboxKinds(w)).toEqual(["confirmation_email", "designer_email", "designer_note_update", "hubspot_deal"]);
   });
   it("both orders end in the same state", async () => {
     const a = makeWorld(); await a.cal.upsert(calBooking("bk", { attendeePhoneHash: PHONE_HASH })); await runCall(a, "c");

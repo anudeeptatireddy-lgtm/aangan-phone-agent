@@ -82,7 +82,11 @@ export async function getCallDetail(db: SqlClient, vendorCallId: string, demo: b
   const b = booking.rows[0];
   const handoffs = b ? (await db.query("select h.*, dz.name as designer_name from handoffs h join designers dz on dz.id = h.designer_id where h.booking_id = $1 order by h.attempt_no, h.sent_at nulls last", [b.id])).rows : [];
   const ruleVersion = c.rv_version == null ? null : `v${c.rv_version}`;
+  const dEmail = (await db.query("select status, created_at, left(coalesce(last_error,''),140) as err from outbox where is_demo = $2 and kind = 'designer_email' and payload->>'vendorCallId' = $1 order by created_at desc limit 1", [vendorCallId, demo])).rows[0];
+  const meet = (await db.query("select meeting_url from calcom_bookings where claimed_by_call = $1 limit 1", [vendorCallId])).rows[0];
   return {
+    designerEmail: dEmail ? { status: String(dEmail.status), at: d(dEmail.created_at), error: s(dEmail.err) } : null,
+    meetingUrl: s(meet?.meeting_url),
     call: { id: String(c.vaani_call_id), rangAt: d(c.rang_at), answeredAt: d(c.answered_at), endedAt: d(c.ended_at), durationS: c.duration_s == null ? null : Number(c.duration_s), afterHours: (c.after_hours as boolean | null) ?? null,
       outcome: s(c.outcome), intent: s(c.intent), endedReason: s(c.ended_reason), postCallStatus: String(c.post_call_status), summary: s(c.summary), recordingUrl: s(c.recording_path),
       disclosureOk: (c.disclosure_ok as boolean | null) ?? null, costTotalInr: c.cost_total_inr == null ? null : Number(c.cost_total_inr) },

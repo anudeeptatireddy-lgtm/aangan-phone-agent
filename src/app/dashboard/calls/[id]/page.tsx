@@ -106,6 +106,12 @@ export default async function CallPage({ params, searchParams }: { params: Promi
             </ul>
           </Block>}
 
+          {b && <Block title="Project email to the designer"><dl className="kv">
+            <Row k="Email" v={d.designerEmail ? `${({ processed: "Sent", pending: "Waiting to send", failed: "Could not be sent" } as Record<string, string>)[d.designerEmail.status] ?? d.designerEmail.status} · ${when(d.designerEmail.at)}${d.designerEmail.error ? ` (${d.designerEmail.error})` : ""}` : "Not recorded for this call"} />
+            <Row k="To" v={b.designer} />
+            <Row k="Meeting link" v={d.meetingUrl ? <a href={d.meetingUrl}>{d.meetingUrl}</a> : "None from Cal.com yet"} />
+            <Row k="Contains" v="The project details, the meeting link with the customer, and the transcript of this call" />
+          </dl></Block>}
           {e?.designerNote && <Block title="The note the designer received"><pre className="note">{e.designerNote}</pre></Block>}
           <p className="muted small" style={{ marginTop: 22 }}>Recorded {day(d.call.rangAt)}. Recordings are deleted after 90 days.</p>
         </div>

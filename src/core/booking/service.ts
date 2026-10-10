@@ -170,11 +170,12 @@ export class BookingService {
   private async sendHandoff(bookingId: string, chosen: Designer, e: EnquiryRecord, start: Date, principalRequested: boolean, now: Date): Promise<boolean> {
     const dueAt = addWorkingMinutes(now, this.d.config.handoffAcceptWorkingMinutes, this.d.hours ?? DEFAULT_HOURS);
     const handoff = await this.d.repo.createHandoff({ bookingId, designerId: chosen.id, dueAt });
-    if (chosen.telegramChatId == null) return false;
+    if (chosen.telegramChatId == null && !this.d.notifier.confirmsOnSend) return false;
     try {
       const note = buildHandoffNote({ handoffId: handoff.id, enquiry: e, start, mode: MODE, principalRequested });
       const m = await this.d.notifier.sendHandoff(chatId(chosen), note);
       await this.d.repo.markHandoffSent(handoff.id, m.messageId, now);
+      if (this.d.notifier.confirmsOnSend) await this.d.repo.transitionHandoff(handoff.id, ["sent"], "accepted", now); // email: the sent email is the handoff
       return true;
     } catch (err) {
       log("error", "booking: handoff send failed; left pending", { error: String(err), handoff_id: handoff.id });

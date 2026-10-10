@@ -21,6 +21,8 @@ export interface CalendarPort {
 export interface HandoffButton { text: string; data: string }
 export interface HandoffNote { text: string; acceptData: string; declineData: string; buttons: HandoffButton[] }
 export interface NotifierPort {
+  /** True when delivering the handoff is the whole handoff (email): it is marked accepted on send, so no 30-minute reassignment. */
+  readonly confirmsOnSend?: boolean;
   sendHandoff(chatId: number, note: HandoffNote): Promise<{ messageId: number }>;
   sendAlert(chatId: number, text: string): Promise<void>;
   /** Edit a sent note. Omitting `buttons` removes the inline keyboard. */

@@ -18,7 +18,7 @@ function signatureOk(raw: string, given: string | null, secret: string): boolean
 const STATUS: Record<string, CalStatus> = { ACCEPTED: "accepted", CANCELLED: "cancelled", PENDING: "pending", REJECTED: "rejected", AWAITING_HOST: "pending", RESCHEDULED: "rescheduled" };
 const TRIGGERS: Record<string, CalStatus | undefined> = { BOOKING_CREATED: undefined, BOOKING_CANCELLED: "cancelled", BOOKING_REJECTED: "rejected", BOOKING_RESCHEDULED: "rescheduled" };
 
-interface Payload { uid?: string; startTime?: string; endTime?: string; title?: string; eventTypeId?: number; status?: string; attendees?: { email?: string; name?: string; phoneNumber?: string | null }[] }
+interface Payload { videoCallData?: { url?: string }; metadata?: { videoCallUrl?: string }; uid?: string; startTime?: string; endTime?: string; title?: string; eventTypeId?: number; status?: string; attendees?: { email?: string; name?: string; phoneNumber?: string | null }[] }
 
 export async function handleCalcomWebhook(req: Request, deps: Deps): Promise<Response> {
   const secret = deps.env.CALCOM_SIGNING_SECRET;
@@ -45,6 +45,7 @@ export async function handleCalcomWebhook(req: Request, deps: Deps): Promise<Res
     attendeeEmail: a?.email ? a.email.toLowerCase() : null, attendeeName: a?.name ?? null,
     attendeePhoneHash: phone ? hashPhone(phone, deps.env.PHONE_HASH_PEPPER) : null,
     createdAt: Number.isNaN(created.getTime()) ? deps.now() : created,
+    meetingUrl: p.videoCallData?.url ?? p.metadata?.videoCallUrl ?? null,   // field names: cal.com docs (webhooks), BOOKING_CREATED payload
   });
   log("info", "calcom_webhook", { trigger, uid: p.uid, status });
 

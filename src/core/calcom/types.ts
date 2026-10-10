@@ -13,6 +13,7 @@ export interface CalBooking {
   attendeePhoneHash: string | null; // HMAC of the E.164 number; the number itself is not stored here
   createdAt: Date;                  // when Cal.com created it: used to match it to the call that was in progress
   claimedByCall: string | null;     // vendor call id
+  meetingUrl?: string | null;       // the video link Cal.com made for it (Cal Video), from its webhook
 }
 
 export interface CalBookingStore {
