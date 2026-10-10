@@ -190,6 +190,14 @@ describe("end to end with Cal.com (both orders)", () => {
       expect(d3.fakeEmail!.sent.filter((m) => m.subject.includes("no consultation booked yet"))).toHaveLength(1);
     } finally { d = dd; }
   });
+  it("re-processing a call that is already booked never un-books it (a late webhook, or a manual catch-up)", async () => {
+    seed("e7"); await send(post("e7")); await calSend("bk-e7");
+    expect((await d.postcall.getCall("e7"))!.outcome).toBe("booked");
+    await d.postcall.upsertCall("e7", { postCallStatus: "pending" });                      // what a catch-up of a half-processed call looks like
+    expect((await send(post("e7"))).status).toBe(200);
+    expect((await d.postcall.getCall("e7"))!.outcome).toBe("booked");
+    expect(await d.bookingRepo.findByIdempotencyKey("cal:bk-e7")).not.toBeNull();
+  });
   it("booking first, call later: matched as soon as the call is processed", async () => {
     await calSend("bk-e2");
     seed("e2");

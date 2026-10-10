@@ -223,7 +223,8 @@ export class PostCallPipeline {
       }
       // The booking (if any) lives in Cal.com and arrives by its own webhook: the router matches it and decides who is told what.
       await repo.enqueue("call_routing", { vendorCallId: id, enquiryId, claimedBooking: rec.signals?.claimedBooking === true }, `call_routing:${id}`);
-      const result = await finish("review", enquiryId, { }); // provisional: the router sets the final outcome
+      // provisional: the router sets the final outcome. A call that is already booked stays booked when it is processed again (late webhook, catch-up).
+      const result = await finish(existing?.outcome === "booked" ? "booked" : "review", enquiryId, { });
       try { await this.d.router?.routeCall(id); } catch (err) { log("error", "post-call: routing attempt failed; the tick will retry", { vendor_call_id: id, error: String(err).slice(0, 200) }); }
       return result;
     }
